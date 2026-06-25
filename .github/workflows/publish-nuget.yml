@@ -1,0 +1,37 @@
+name: Publish NuGet Package
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v5
+        with:
+          dotnet-version: "8.0.x"
+
+      - name: Restore
+        run: dotnet restore LegacyWcf.Configuration.slnx
+
+      - name: Test
+        run: dotnet test LegacyWcf.Configuration.slnx --configuration Release --no-restore
+
+      - name: Pack
+        run: dotnet pack src/LegacyWcf.Configuration/LegacyWcf.Configuration.csproj --configuration Release --no-restore --output artifacts/packages
+
+      - name: Publish package
+        run: dotnet nuget push "artifacts/packages/*.nupkg" --api-key "${{ secrets.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+      - name: Publish symbols
+        run: dotnet nuget push "artifacts/packages/*.snupkg" --api-key "${{ secrets.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
