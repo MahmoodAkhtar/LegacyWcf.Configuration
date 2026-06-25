@@ -7,6 +7,7 @@ on:
 
 permissions:
   contents: read
+  id-token: write
 
 jobs:
   publish:
@@ -30,8 +31,14 @@ jobs:
       - name: Pack
         run: dotnet pack src/LegacyWcf.Configuration/LegacyWcf.Configuration.csproj --configuration Release --no-restore --output artifacts/packages
 
+      - name: NuGet login
+        uses: NuGet/login@v1
+        id: login
+        with:
+          user: Mahmood.Akhtar
+
       - name: Publish package
-        run: dotnet nuget push "artifacts/packages/*.nupkg" --api-key "${{ secrets.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+        run: dotnet nuget push "artifacts/packages/*.nupkg" --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
 
       - name: Publish symbols
-        run: dotnet nuget push "artifacts/packages/*.snupkg" --api-key "${{ secrets.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+        run: dotnet nuget push "artifacts/packages/*.snupkg" --api-key "${{ steps.login.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
