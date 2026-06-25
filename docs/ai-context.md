@@ -265,6 +265,120 @@ The repository should include a root-level `LICENSE` file containing the Apache 
 - Diagnostics should be permissive and useful.
 - Optional CoreWCF mapping helpers should come later as a separate package.
 
+## Commit message convention
+
+Use Conventional Commit-style messages for this repository.
+
+Format:
+
+```text
+<type>(<scope>): <imperative description>
+```
+
+Examples:
+
+```text
+feat(parser): preserve raw system.serviceModel xml
+fix(parser): handle missing serviceModel section
+docs(usage): add basic loading example
+test(parser): cover empty serviceModel section
+refactor(api): extract service lookup helpers
+build(project): add nuget package metadata
+```
+
+The commit message should clearly answer:
+
+```text
+What kind of change is it? -> type
+Where did it happen?       -> scope
+What changed?              -> description
+```
+
+### Commit types
+
+Use these commit types consistently:
+
+| Type | Use when |
+|---|---|
+| `feat` | Adding a new capability, public API, parser behaviour, model, diagnostic, or supported WCF configuration concept. |
+| `fix` | Correcting broken, incorrect, or unintended behaviour. |
+| `docs` | Changing documentation only. |
+| `refactor` | Improving internal structure without intentionally changing public behaviour. |
+| `test` | Adding, updating, or fixing tests only. |
+| `build` | Changing project files, target frameworks, package metadata, CI, publishing, or release behaviour. |
+| `chore` | Repository maintenance that is not product code, tests, docs, or build behaviour. |
+| `style` | Formatting, whitespace, naming cleanup, or code style changes with no behaviour change. |
+| `perf` | Improving performance, reducing repeated XML traversal, reducing allocations, or avoiding unnecessary IO. |
+| `revert` | Reverting a previous commit. |
+
+### Commit scopes
+
+Prefer scopes that match the main architectural and domain areas of `LegacyWcf.Configuration`.
+
+| Scope | Use for |
+|---|---|
+| `parser` | XML loading, XML traversal, `<system.serviceModel>` reading, and raw XML preservation. |
+| `model` | Typed configuration model classes and raw model classes. |
+| `services` | WCF service definitions under `<services>`. |
+| `endpoints` | Service endpoints and client endpoints. |
+| `bindings` | Binding collections and binding configuration such as `basicHttpBinding`, `wsHttpBinding`, `netTcpBinding`, and `customBinding`. |
+| `behaviours` | Service behaviours and endpoint behaviours. |
+| `validation` | Validation rules for missing, duplicate, malformed, or inconsistent configuration. |
+| `diagnostics` | Warnings, informational messages, unsupported configuration notes, and migration concern reporting. |
+| `api` | Public API shape, extension methods, typed collection helpers, lookup methods, and consumer-facing convenience methods. |
+| `docs` | General documentation structure. |
+| `usage` | Usage examples and consumer guidance. |
+| `architecture` | Internal design documentation. |
+| `tests` | Test project structure, shared test helpers, and test data. |
+| `build` | `.csproj`, `.sln`, `.slnx`, package metadata, CI, and publishing configuration. |
+| `repo` | Repository housekeeping such as `.gitignore`, license files, and root-level maintenance files. |
+
+### Description style
+
+Write the description in imperative style.
+
+Good:
+
+```text
+feat(parser): preserve raw system.serviceModel xml
+fix(bindings): handle unnamed binding configurations
+docs(architecture): explain raw and typed model relationship
+test(endpoints): cover endpoint binding configuration lookup
+refactor(parser): extract service model section reader
+```
+
+Avoid:
+
+```text
+feat(parser): added raw xml preservation
+fix(bindings): fixed unnamed binding configs
+docs(architecture): updated architecture docs
+```
+
+The description should read naturally as:
+
+```text
+This commit will preserve raw system.serviceModel xml.
+```
+
+### Choosing the right type
+
+Use this decision guide:
+
+| Question | Type |
+|---|---|
+| Does it add something consumers can use or observe? | `feat` |
+| Does it correct wrong behaviour? | `fix` |
+| Does it only change documentation? | `docs` |
+| Does it only change tests? | `test` |
+| Does it improve internal design without changing intended behaviour? | `refactor` |
+| Does it make parsing, modelling, or querying faster or cheaper? | `perf` |
+| Does it change `.csproj`, `.slnx`, CI, packaging, or publishing? | `build` |
+| Is it general repository maintenance? | `chore` |
+| Is it only formatting or code style? | `style` |
+| Does it undo a previous commit? | `revert` |
+
+
 ## Things AI assistants should avoid
 
 Do not:
