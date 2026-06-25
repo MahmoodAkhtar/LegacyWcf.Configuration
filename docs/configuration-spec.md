@@ -89,7 +89,36 @@ Current diagnostic codes are:
 
 Malformed XML returns `Success == false` and no typed or raw configuration. Missing `<system.serviceModel>` also returns `Success == false`, but it is reported clearly and is not treated as malformed XML.
 
+## Phase 2 Stage 1 typed model contract
+
+Phase 2 Stage 1 should add typed models for services and service endpoints only. It should be additive on top of the Phase 1 raw reader and must not weaken raw XML preservation.
+
+Implemented Stage 1 behaviour should include:
+
+- `config.Services` as a typed enumerable collection
+- `service.Endpoints` as a typed enumerable collection
+- `LegacyWcfService.Name`
+- `LegacyWcfService.BehaviorConfiguration`
+- `LegacyWcfService.RawElement`
+- `LegacyWcfServiceEndpoint.Name`
+- `LegacyWcfServiceEndpoint.Address`
+- `LegacyWcfServiceEndpoint.Binding`
+- `LegacyWcfServiceEndpoint.BindingConfiguration`
+- `LegacyWcfServiceEndpoint.Contract`
+- `LegacyWcfServiceEndpoint.BehaviorConfiguration`
+- `LegacyWcfServiceEndpoint.RawElement`
+
+If `<services>` is missing, `config.Services.Count` should be `0` while the raw `<system.serviceModel>` model remains available.
+
+If a `<service>` is missing a `name` attribute, the typed service should be preserved with `Name == ""` rather than failing.
+
+If an `<endpoint>` is missing optional attributes, the corresponding typed properties should be `null`.
+
+Unknown service child elements and `<host>` should be preserved through `service.RawElement`, but Stage 1 should not expose typed host, binding, behaviour, client endpoint, or lookup APIs.
+
 ## Scenario 1: Simple service with endpoint
+
+Stage 1 typed model target: yes.
 
 ### Input XML
 
@@ -140,6 +169,8 @@ No diagnostics expected.
 ```
 
 ## Scenario 2: Service with host base addresses
+
+Stage 1 typed model target: partial only. Stage 1 should preserve `<host>` in `service.RawElement`, but typed host and base address models remain later work.
 
 ### Input XML
 
@@ -196,6 +227,8 @@ No diagnostics expected.
 ```
 
 ## Scenario 3: Service with multiple endpoints
+
+Stage 1 typed model target: yes.
 
 ### Input XML
 
@@ -508,6 +541,8 @@ No diagnostics expected.
 ```
 
 ## Scenario 10: Unknown custom element preserved
+
+Stage 1 typed model target: yes for service parsing and raw child preservation. The unknown element remains raw-only.
 
 ### Input XML
 

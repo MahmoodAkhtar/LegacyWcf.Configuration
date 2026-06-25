@@ -105,9 +105,11 @@ Future diagnostics may include:
 - references to missing binding configurations
 - references to missing behaviour configurations
 
-## Future typed model usage
+## Phase 2 Stage 1 planned typed service and endpoint usage
 
-The following examples are intended for later phases after typed WCF models and lookup APIs are implemented.
+The following examples describe the intended developer experience once Phase 2 Stage 1 is implemented. Stage 1 is limited to typed services, typed service endpoints, typed enumerable collections, and raw XML fallback from those typed objects.
+
+Stage 1 does not include `Find(...)`, `GetRequired(...)`, endpoint lookup helpers, host/base address models, bindings, behaviours, client endpoints, validation diagnostics, CoreWCF mapping, code generation, or CLI tooling.
 
 ## Enumerate services
 
@@ -121,13 +123,14 @@ foreach (var service in config.Services)
 
 `config.Services` should be a typed enumerable collection.
 
-It should support:
+For Phase 2 Stage 1 it should support:
 
+- `Count`
+- indexed access
 - `foreach`
-- LINQ
-- indexed access where useful
-- `Find(...)`
-- `GetRequired(...)`
+- LINQ through `IEnumerable`/`IReadOnlyList`
+
+Lookup helpers such as `Find(...)` and `GetRequired(...)` are planned for a later retrieval API phase.
 
 ## Enumerate service endpoints
 
@@ -148,7 +151,7 @@ foreach (var service in config.Services)
 }
 ```
 
-## Targeted service lookup
+## Future targeted service lookup
 
 ```csharp
 var service = config.Services.GetRequired(
@@ -169,7 +172,7 @@ if (service is null)
 
 `Find(...)` should return `null` when the item does not exist.
 
-## Targeted endpoint lookup
+## Future targeted endpoint lookup
 
 A service endpoint collection should support common WCF lookup patterns.
 

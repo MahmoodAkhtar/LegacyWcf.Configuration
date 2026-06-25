@@ -83,11 +83,42 @@ Goal:
 Add typed models for high-value WCF concepts.
 ```
 
-Priority typed models:
+### Phase 2 Stage 1: typed services and service endpoints
 
-- services
-- service
-- service endpoints
+Status: planned next slice.
+
+Stage 1 should add:
+
+- `LegacyWcfService`
+- `LegacyWcfServiceEndpoint`
+- `LegacyWcfServices`
+- `LegacyWcfServiceEndpoints`
+- `LegacyWcfConfiguration.Services`
+- typed parsing from the preserved raw `LegacyWcfElement` tree
+- tests for simple services, service endpoints, multiple endpoints, missing `<services>`, and unknown service children
+
+Stage 1 should not add:
+
+- host model
+- host base addresses
+- host timeouts
+- bindings
+- behaviours
+- client endpoints
+- serviceHostingEnvironment
+- `Find(...)` or `GetRequired(...)` lookup APIs
+- endpoint lookup helpers
+- validation diagnostics for duplicates or missing references
+- CoreWCF mapping
+- code generation
+- CLI tooling
+
+Every typed object should retain access to its raw XML element.
+
+### Later Phase 2 typed model areas
+
+Later Phase 2 stages should add:
+
 - host
 - host base addresses
 - host timeouts
@@ -102,8 +133,6 @@ Priority typed models:
 - endpoint behaviours
 - client endpoints
 - serviceHostingEnvironment
-
-Every typed object should retain access to its raw XML element.
 
 Example:
 

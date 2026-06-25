@@ -7,9 +7,8 @@ namespace LegacyWcf.Configuration;
 /// Represents the WCF configuration data read from a legacy configuration file.
 /// </summary>
 /// <remarks>
-/// Phase 1 exposes the preserved raw <c>&lt;system.serviceModel&gt;</c> XML tree only.
-/// Typed WCF models for services, endpoints, bindings, behaviours, and client configuration
-/// are intentionally not part of the current API.
+/// The raw <c>&lt;system.serviceModel&gt;</c> XML tree remains the source of truth.
+/// Phase 2 Stage 1 adds typed services and service endpoints on top of that preserved raw tree.
 /// </remarks>
 public sealed class LegacyWcfConfiguration
 {
@@ -23,13 +22,27 @@ public sealed class LegacyWcfConfiguration
     /// Optional diagnostics associated with the configuration. When <see langword="null"/>,
     /// an empty diagnostics collection is used.
     /// </param>
+    /// <param name="services">
+    /// Optional typed WCF services. When <see langword="null"/>, an empty service collection is used.
+    /// </param>
     public LegacyWcfConfiguration(
         LegacyWcfElement rawSystemServiceModel,
-        IReadOnlyList<LegacyWcfDiagnostic>? diagnostics = null)
+        IReadOnlyList<LegacyWcfDiagnostic>? diagnostics = null,
+        LegacyWcfServices? services = null)
     {
         RawSystemServiceModel = rawSystemServiceModel ?? throw new ArgumentNullException(nameof(rawSystemServiceModel));
         Diagnostics = diagnostics ?? Array.Empty<LegacyWcfDiagnostic>();
+        Services = services ?? LegacyWcfServices.Empty;
     }
+
+    /// <summary>
+    /// Gets the typed WCF services declared under <c>&lt;services&gt;</c>.
+    /// </summary>
+    /// <remarks>
+    /// The collection is empty when no <c>&lt;services&gt;</c> element exists. Stage 1 does not
+    /// include lookup helpers, host models, bindings, behaviours, or client endpoints.
+    /// </remarks>
+    public LegacyWcfServices Services { get; }
 
     /// <summary>
     /// Gets the preserved raw <c>&lt;system.serviceModel&gt;</c> element.

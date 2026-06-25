@@ -328,6 +328,42 @@ public sealed class LegacyWcfConfiguration
 }
 ```
 
+### Phase 2 Stage 1 typed model boundary
+
+The first typed-model slice should be deliberately small and additive. It should add typed services and typed service endpoints only, while keeping the raw model as the source of truth.
+
+Stage 1 public API should include:
+
+```text
+LegacyWcfService
+LegacyWcfServiceEndpoint
+LegacyWcfServices
+LegacyWcfServiceEndpoints
+LegacyWcfConfiguration.Services
+```
+
+`LegacyWcfServices` and `LegacyWcfServiceEndpoints` should be typed enumerable collections with `Count`, indexer support, `foreach`, and LINQ support through `IEnumerable`/`IReadOnlyList`.
+
+Stage 1 should not add host models, host base addresses, bindings, behaviours, client endpoints, lookup helpers, validation diagnostics, CoreWCF mapping, code generation, or CLI tooling.
+
+Typed parsing should be built from `LegacyWcfElement` rather than directly from `XDocument` or `XElement`. The recommended internal helper is:
+
+```text
+src/LegacyWcf.Configuration/Internal/LegacyWcfTypedModelBuilder.cs
+```
+
+The reader flow becomes:
+
+```text
+File path
+  -> load XML document
+  -> locate <configuration>
+  -> locate <system.serviceModel>
+  -> build full raw LegacyWcfElement tree
+  -> build typed services and endpoints from the raw tree
+  -> return LegacyWcfConfiguration with RawSystemServiceModel and Services
+```
+
 Every typed object should expose its raw element:
 
 ```csharp

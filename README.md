@@ -169,6 +169,14 @@ Phase 1 provides:
 
 This establishes the most important trust boundary: legacy WCF XML is preserved before it is interpreted.
 
+## Planned next slice: Phase 2 Stage 1 typed services and endpoints
+
+The next planned implementation slice is **Phase 2 Stage 1**. It should add typed models for WCF services and service endpoints on top of the preserved raw XML tree.
+
+Stage 1 should add typed enumerable collections for `config.Services` and `service.Endpoints`, with each typed object retaining access to its source `LegacyWcfElement`.
+
+Stage 1 should not add host models, base addresses, bindings, behaviours, client endpoints, lookup APIs, validation diagnostics, CoreWCF mapping, code generation, or CLI tooling. Those remain later stages or phases.
+
 ## Relationship to CoreWCF
 
 LegacyWcf.Configuration is not a CoreWCF hosting package and does not depend on CoreWCF.
@@ -243,7 +251,7 @@ Current test status:
 - passed: 6
 - failed: 0
 
-The next implementation step is Phase 2: typed WCF models on top of the preserved raw XML tree. The project should continue to prioritise:
+The next implementation step is Phase 2 Stage 1: typed WCF service and service endpoint models on top of the preserved raw XML tree. The project should continue to prioritise:
 
 - full-fidelity XML preservation
 - typed access to common WCF values

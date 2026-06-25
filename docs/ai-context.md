@@ -400,9 +400,36 @@ Future AI implementation chats should preserve this boundary: raw XML preservati
 
 ## Current next implementation slice
 
-The next implementation step is **Phase 2: Typed WCF model**.
+The next implementation step is **Phase 2 Stage 1: typed services and service endpoints**.
 
 Phase 2 should build typed models on top of the preserved raw tree. Every typed object should retain access to its source `LegacyWcfElement`.
+
+Stage 1 is limited to:
+
+- typed services
+- typed service endpoints
+- typed enumerable service collection
+- typed enumerable endpoint collection
+- every typed object retaining access to its source `LegacyWcfElement`
+- wiring `LegacyWcfConfiguration.Services` into the configuration model
+- tests for typed service and endpoint parsing
+
+Stage 1 should not implement:
+
+- host model
+- host base addresses
+- host timeouts
+- bindings
+- behaviours
+- client endpoints
+- serviceHostingEnvironment
+- `Find(...)`
+- `GetRequired(...)`
+- endpoint lookup helpers
+- validation diagnostics for duplicates or missing references
+- CoreWCF mapping
+- code generation
+- CLI tooling
 
 Phase 2 should still avoid CoreWCF mapping, code generation, and CLI tooling.
 
@@ -437,6 +464,39 @@ The exact API may change, but the preservation principle should not.
 The typed model should sit on top of the raw model.
 
 Every typed object should retain a link back to the raw XML element.
+
+For Phase 2 Stage 1, the public model shape should be limited to:
+
+```text
+LegacyWcfService
+- string Name
+- string? BehaviorConfiguration
+- LegacyWcfServiceEndpoints Endpoints
+- LegacyWcfElement RawElement
+
+LegacyWcfServiceEndpoint
+- string? Name
+- string? Address
+- string? Binding
+- string? BindingConfiguration
+- string? Contract
+- string? BehaviorConfiguration
+- LegacyWcfElement RawElement
+
+LegacyWcfServices
+- Count
+- indexer
+- foreach support
+- LINQ support through IEnumerable/IReadOnlyList
+
+LegacyWcfServiceEndpoints
+- Count
+- indexer
+- foreach support
+- LINQ support through IEnumerable/IReadOnlyList
+```
+
+`LegacyWcfConfiguration` should expose `LegacyWcfServices Services`, defaulting to an empty collection when no `<services>` element exists.
 
 A possible shape:
 
