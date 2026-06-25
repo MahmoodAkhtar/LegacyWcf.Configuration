@@ -24,6 +24,71 @@ The reader should:
 - add diagnostics where useful
 - avoid failing for unsupported but well-formed XML
 
+
+## Phase 1 behaviour contract: raw reader only
+
+Phase 1 implements the full-fidelity raw reader only. This phase is now implemented in the current codebase.
+
+For Phase 1, scenarios in this document are used primarily to prove that the raw `<system.serviceModel>` tree is preserved. Typed model expectations describe later behaviour unless explicitly stated otherwise.
+
+The implemented public API is:
+
+```csharp
+var result = LegacyWcfConfigurationReader.Read("web.config");
+var raw = result.Configuration!.RawSystemServiceModel;
+```
+
+Phase 1 should produce:
+
+```text
+result.Success == true
+result.Configuration is not null
+result.Configuration.RawSystemServiceModel.Name == "system.serviceModel"
+```
+
+Phase 1 should preserve:
+
+- all descendant elements under `<system.serviceModel>`
+- all attributes on those elements
+- raw XML for each element
+- source file path on raw elements
+- line number where practical
+- unknown custom elements and attributes
+
+Phase 1 should not yet require:
+
+- typed services
+- typed endpoints
+- typed bindings
+- typed behaviours
+- typed client endpoint collections
+- `Find(...)` or `GetRequired(...)` lookup APIs
+- CoreWCF mapping
+- code generation
+
+## Phase 1 diagnostics contract
+
+The Phase 1 reader returns diagnostics for:
+
+- missing or blank file path
+- file not found
+- file cannot be read
+- malformed XML
+- missing `<configuration>`
+- missing `<system.serviceModel>`
+
+Current diagnostic codes are:
+
+| Code | Meaning |
+|---|---|
+| `LWC0001` | Missing/blank path or file not found. |
+| `LWC0002` | File could not be read. |
+| `LWC0003` | XML could not be loaded or parsed. |
+| `LWC0004` | Root `<configuration>` element was not found. |
+| `LWC0005` | `<system.serviceModel>` was not found under `<configuration>`. |
+
+Malformed XML returns `Success == false` and no typed or raw configuration. Missing `<system.serviceModel>` also returns `Success == false`, but it is reported clearly and is not treated as malformed XML.
+
 ## Scenario 1: Simple service with endpoint
 
 ### Input XML
@@ -480,9 +545,47 @@ The <nested> child element is preserved.
 ### Expected diagnostics
 
 ```text
-A warning or informational diagnostic may be emitted to say that an unknown element was preserved.
+Phase 1 does not need to emit a diagnostic for this scenario.
 The reader should not fail solely because this unknown element exists.
+A later validation phase may emit a warning or informational diagnostic to say that an unknown element was preserved.
 ```
+
+
+## Phase 1 test scenario: Raw reader preserves valid service XML
+
+### Input XML
+
+```xml
+<configuration>
+  <system.serviceModel>
+    <services>
+      <service name="MyCompany.Services.CustomerService">
+        <endpoint
+          address=""
+          binding="basicHttpBinding"
+          contract="MyCompany.Services.ICustomerService" />
+      </service>
+    </services>
+  </system.serviceModel>
+</configuration>
+```
+
+### Expected Phase 1 result
+
+```text
+result.Success == true
+result.Configuration is not null
+RawSystemServiceModel.Name == "system.serviceModel"
+RawSystemServiceModel.Children contains services
+service element is preserved
+endpoint element is preserved
+endpoint attributes are preserved
+RawXml is populated
+SourceFilePath is populated
+LineNumber is populated if practical
+```
+
+No typed service or endpoint model is required in Phase 1.
 
 ## Scenario 11: Missing system.serviceModel
 
@@ -499,7 +602,8 @@ The reader should not fail solely because this unknown element exists.
 ### Expected typed model
 
 ```text
-No LegacyWcfConfiguration is available, or an empty configuration is returned depending on final API design.
+result.Success == false
+result.Configuration == null
 ```
 
 ### Raw XML preservation
@@ -512,9 +616,11 @@ No RawSystemServiceModel exists because <system.serviceModel> is absent.
 
 ```text
 Diagnostic should indicate that <system.serviceModel> was not found.
+Diagnostic severity should be Error.
+Diagnostic code should be LWC0005.
 ```
 
-Whether this makes result.Success false is an API decision. For the MVP, missing `<system.serviceModel>` should be reported clearly and should not be confused with malformed XML.
+Missing `<system.serviceModel>` is an expected read outcome. It should be reported clearly and should not be confused with malformed XML.
 
 ## Scenario 12: Malformed XML
 
@@ -546,6 +652,7 @@ No reliable raw model can be built.
 
 ```text
 Diagnostic severity should be Error.
+Diagnostic code should be LWC0003.
 result.Success should be false.
 ```
 

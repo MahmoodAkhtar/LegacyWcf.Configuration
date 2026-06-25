@@ -82,6 +82,8 @@ This keeps the package usable from .NET Framework 4.8 applications through `nets
 
 ## Intended usage
 
+The currently implemented Phase 1 API reads a config file and exposes the raw `<system.serviceModel>` XML tree:
+
 ```csharp
 using LegacyWcf.Configuration;
 
@@ -97,8 +99,16 @@ if (!result.Success)
     return;
 }
 
-var config = result.Configuration;
+var raw = result.Configuration!.RawSystemServiceModel;
 
+Console.WriteLine(raw.Name);
+Console.WriteLine(raw.Path);
+Console.WriteLine(raw.RawXml);
+```
+
+Future typed model APIs are intended to make common WCF concepts directly queryable:
+
+```csharp
 foreach (var service in config.Services)
 {
     Console.WriteLine($"Service: {service.Name}");
@@ -113,7 +123,7 @@ foreach (var service in config.Services)
 }
 ```
 
-Targeted lookup should also be supported:
+Targeted lookup should also be supported in a later phase:
 
 ```csharp
 var service = config.Services.GetRequired(
@@ -128,6 +138,36 @@ var binding = config.Bindings.GetRequired(
 
 var baseAddresses = service.Host?.BaseAddresses ?? [];
 ```
+
+
+## Current implementation slice: Phase 1 raw reader
+
+**Phase 1: Full-fidelity reader is implemented.**
+
+Phase 1 is deliberately limited to reading and preserving the raw `<system.serviceModel>` XML tree. It does not add typed WCF services, endpoints, bindings, behaviours, lookup APIs, CoreWCF mapping, code generation, or CLI tooling yet.
+
+The implemented API is:
+
+```csharp
+var result = LegacyWcfConfigurationReader.Read("web.config");
+
+if (result.Success)
+{
+    var raw = result.Configuration!.RawSystemServiceModel;
+}
+```
+
+Phase 1 provides:
+
+- a simple `LegacyWcfConfigurationReader.Read(string filePath)` entry point
+- a read result with `Success`, `Configuration`, and `Diagnostics`
+- a minimal `LegacyWcfConfiguration` containing `RawSystemServiceModel`
+- a recursive raw XML model that preserves element names, paths, attributes, children, values, raw XML, source file paths, and line numbers where practical
+- diagnostics for missing files, unreadable files, malformed XML, missing `<configuration>`, and missing `<system.serviceModel>`
+- preservation of unknown custom elements and attributes
+- no CoreWCF dependency in the core package
+
+This establishes the most important trust boundary: legacy WCF XML is preserved before it is interpreted.
 
 ## Relationship to CoreWCF
 
@@ -153,29 +193,57 @@ Project documentation is available in the `docs/` folder:
 
 ## Repository shape
 
-Suggested initial repository structure:
+Current source layout:
 
 ```text
 LegacyWcf.Configuration/
-├── README.md
-├── CHANGELOG.md
+│
 ├── docs/
 │   ├── ai-context.md
-│   ├── usage.md
 │   ├── architecture.md
 │   ├── configuration-spec.md
-│   └── roadmap.md
+│   ├── roadmap.md
+│   └── usage.md
+│
 ├── src/
 │   └── LegacyWcf.Configuration/
+│       ├── LegacyWcf.Configuration.csproj
+│       ├── LegacyWcfConfiguration.cs
+│       ├── LegacyWcfConfigurationReader.cs
+│       ├── LegacyWcfConfigurationReadResult.cs
+│       ├── LegacyWcfDiagnostic.cs
+│       ├── LegacyWcfDiagnosticSeverity.cs
+│       ├── LegacyWcfElement.cs
+│       └── Internal/
+│           └── LegacyWcfRawElementBuilder.cs
+│
 ├── tests/
 │   └── LegacyWcf.Configuration.Tests/
-└── samples/
-    └── LegacyWcf.Configuration.SampleConsole/
+│       ├── LegacyWcf.Configuration.Tests.csproj
+│       └── LegacyWcfConfigurationReaderTests.cs
+│
+├── .gitignore
+├── CHANGELOG.md
+├── LegacyWcf.Configuration.slnx
+├── LICENSE
+├── README.md
+├── merge.ps1
+└── test.ps1
 ```
+
+Public API files currently live directly under `src/LegacyWcf.Configuration/`. Implementation-only helpers live under `Internal/`.
 
 ## Status
 
-This project is at the design/startup stage. The initial implementation should prioritise:
+Phase 1 raw reader is implemented and covered by tests.
+
+Current test status:
+
+- total tests: 6
+- passed: 6
+- failed: 0
+
+The next implementation step is Phase 2: typed WCF models on top of the preserved raw XML tree. The project should continue to prioritise:
 
 - full-fidelity XML preservation
 - typed access to common WCF values

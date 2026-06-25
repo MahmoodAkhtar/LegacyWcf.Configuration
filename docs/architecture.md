@@ -104,59 +104,141 @@ Rationale:
 
 Implementation should avoid APIs unavailable to `netstandard2.0` unless conditional compilation is used.
 
-## Suggested project structure
+## Source organisation
+
+For the current stage of the project, public API files live directly under:
+
+```text
+src/LegacyWcf.Configuration/
+```
+
+Implementation-only helpers live under `Internal/`.
+
+Current Phase 1 source layout:
 
 ```text
 src/
 └── LegacyWcf.Configuration/
-    ├── Reading/
-    ├── Raw/
-    ├── Model/
-    ├── Parsing/
-    ├── Diagnostics/
+    ├── LegacyWcf.Configuration.csproj
+    ├── LegacyWcfConfiguration.cs
+    ├── LegacyWcfConfigurationReader.cs
+    ├── LegacyWcfConfigurationReadResult.cs
+    ├── LegacyWcfDiagnostic.cs
+    ├── LegacyWcfDiagnosticSeverity.cs
+    ├── LegacyWcfElement.cs
     └── Internal/
+        └── LegacyWcfRawElementBuilder.cs
 ```
 
-Suggested responsibilities:
+The current convention is:
 
 ```text
-Reading
-- public entry point
-- file loading
-- read result
-- options
-- exceptions
-
-Raw
-- full-fidelity XML model
-- raw element representation
-- source location
-
-Model
-- typed WCF configuration model
-- services
-- endpoints
-- bindings
-- behaviours
-- client endpoints
-- service hosting environment
-
-Parsing
-- XML to raw model
-- raw model to typed model
-- focused parsers for services, bindings, behaviours, client
-
-Diagnostics
-- diagnostic model
-- severity
-- codes
-- diagnostic helpers
-
-Internal
-- XML helpers
-- path helpers
-- string comparers
+Top-level project folder = public API
+Internal/                = implementation detail
 ```
+
+Public API types use the root namespace:
+
+```csharp
+namespace LegacyWcf.Configuration;
+```
+
+Internal implementation-only types use:
+
+```csharp
+namespace LegacyWcf.Configuration.Internal;
+```
+
+Do not create folders such as `Reading/`, `Raw/`, `Model/`, or `Diagnostics/` just to group public API types. Folders should be introduced only when they communicate useful structure and reduce friction.
+
+This keeps the maintainer mental model aligned with the consumer mental model: the public API is easy to find at the top level, while implementation details are clearly separated.
+
+## Project file and code style settings
+
+The project should enable nullable reference types at project level:
+
+```xml
+<Nullable>enable</Nullable>
+```
+
+Do not add `#nullable enable` at the top of every `.cs` file.
+
+The project should disable implicit usings:
+
+```xml
+<ImplicitUsings>disable</ImplicitUsings>
+```
+
+Use explicit `using` directives in each file for namespaces the file actually depends on. For example, if a file uses `IReadOnlyList<T>`, `IReadOnlyDictionary<TKey, TValue>`, `Dictionary<TKey, TValue>`, or `List<T>`, it should include:
+
+```csharp
+using System.Collections.Generic;
+```
+
+The project should use an explicit modern language version:
+
+```xml
+<LangVersion>latest</LangVersion>
+```
+
+These conventions keep the code self-contained and Rider-friendly, especially while the library multi-targets `netstandard2.0;net8.0`.
+
+## Phase 1 implementation slice
+
+The first implementation slice is the full-fidelity raw reader.
+
+Phase 1 has been implemented with only the minimum public API and model needed to load and preserve `<system.serviceModel>`:
+
+```text
+src/LegacyWcf.Configuration/
+├── LegacyWcfConfigurationReader.cs
+├── LegacyWcfConfigurationReadResult.cs
+├── LegacyWcfConfiguration.cs
+├── LegacyWcfElement.cs
+├── LegacyWcfDiagnostic.cs
+├── LegacyWcfDiagnosticSeverity.cs
+└── Internal/
+    └── LegacyWcfRawElementBuilder.cs
+```
+
+The Phase 1 public API should stay simple:
+
+```csharp
+var result = LegacyWcfConfigurationReader.Read("web.config");
+
+if (result.Success)
+{
+    var raw = result.Configuration!.RawSystemServiceModel;
+}
+```
+
+Phase 1 should not implement typed `LegacyWcfService`, typed `LegacyWcfEndpoint`, typed bindings, typed behaviours, lookup APIs, CoreWCF mapping, code generation, or CLI tooling. Those are later phases.
+
+### Phase 1 read result
+
+The read result should contain:
+
+- `Success`
+- `Configuration`
+- `Diagnostics`
+
+A missing file, unreadable file, malformed XML document, missing `<configuration>` root, or missing `<system.serviceModel>` section should return a result with diagnostics rather than throwing as part of normal control flow.
+
+### Phase 1 raw model contract
+
+The raw model should preserve:
+
+- element name
+- full element path
+- attributes
+- child elements
+- text value where relevant
+- raw XML
+- source file path
+- line number where practical
+- whether the element is known or unknown
+
+Unknown elements and attributes must be preserved even if `IsKnownElement` is conservative in the first implementation.
 
 ## Public API shape
 
@@ -388,7 +470,7 @@ A future CoreWCF adapter may classify elements as:
 
 ## Parsing approach
 
-Recommended flow:
+Recommended Phase 1 flow:
 
 ```text
 File path
@@ -396,13 +478,32 @@ File path
   -> locate <configuration>
   -> locate <system.serviceModel>
   -> build full raw LegacyWcfElement tree
-  -> parse typed model from raw tree
   -> attach diagnostics
   -> return result
 ```
 
-The raw model should be created before typed parsing so that preservation does not depend on typed support.
+A later typed-model phase should parse typed concepts from the raw tree. The raw model must continue to be created before typed parsing so that preservation does not depend on typed support.
 
+
+
+### Test file organisation and cleanup
+
+Tests should be behaviour-focused rather than automatically split one file per production type. For Phase 1, `LegacyWcfConfigurationReaderTests.cs` covers the public reader behaviour end-to-end:
+
+```text
+file path
+  -> reader
+  -> result
+  -> configuration
+  -> raw element tree
+  -> diagnostics
+```
+
+Simple DTO/model types do not need separate test files unless they gain behaviour of their own.
+
+Tests that write temporary config files must clean them up. Use a per-test temporary directory and delete it in `Dispose()`. Avoid writing directly to `Path.GetTempPath()` without cleanup.
+
+Current Phase 1 reader tests cover valid XML, missing files, malformed XML, missing `<configuration>`, missing `<system.serviceModel>`, and unknown XML preservation.
 
 ## Licensing
 
@@ -439,3 +540,16 @@ Test categories:
 - `Find(...)` and `GetRequired(...)` behaviour
 
 Configuration examples in `docs/configuration-spec.md` should inform test data.
+
+
+Phase 1 tests currently cover:
+
+- reading a valid `<system.serviceModel>` section
+- preserving service and endpoint raw elements and attributes
+- preserving unknown custom elements and nested unknown attributes
+- returning an error diagnostic for a missing file
+- returning an error diagnostic for malformed XML
+- returning a clear diagnostic for a missing `<configuration>` root
+- returning a clear diagnostic for a missing `<system.serviceModel>` section
+- populating source file path and line number where practical
+

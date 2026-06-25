@@ -6,13 +6,15 @@ The project should prioritise trust, preservation, typed access, and clear diagn
 
 ## Phase 1: Full-fidelity reader
 
+Status: implemented.
+
 Goal:
 
 ```text
 Read and preserve the full <system.serviceModel> XML tree.
 ```
 
-The reader should:
+The implemented reader:
 
 - load `app.config`, `web.config`, or external `.config` files
 - locate `<configuration>`
@@ -32,6 +34,46 @@ Expected first useful output:
 var result = LegacyWcfConfigurationReader.Read("web.config");
 var raw = result.Configuration.RawSystemServiceModel;
 ```
+
+
+### Phase 1 implementation boundary
+
+Phase 1 has been implemented as a small raw-reader slice only.
+
+Include:
+
+- `LegacyWcfConfigurationReader.Read(string filePath)`
+- `LegacyWcfConfigurationReadResult`
+- `LegacyWcfConfiguration` with `RawSystemServiceModel`
+- `LegacyWcfElement`
+- `LegacyWcfDiagnostic`
+- `LegacyWcfDiagnosticSeverity`
+- an internal recursive raw element builder
+- tests for valid XML, missing files, malformed XML, missing `<configuration>`, missing `<system.serviceModel>`, and unknown XML preservation
+
+Current Phase 1 source layout keeps public API files at the project root and implementation-only helpers under `Internal/`:
+
+```text
+src/LegacyWcf.Configuration/
+├── LegacyWcfConfigurationReader.cs
+├── LegacyWcfConfigurationReadResult.cs
+├── LegacyWcfConfiguration.cs
+├── LegacyWcfElement.cs
+├── LegacyWcfDiagnostic.cs
+├── LegacyWcfDiagnosticSeverity.cs
+└── Internal/
+    └── LegacyWcfRawElementBuilder.cs
+```
+
+Phase 1 does not include typed services, endpoints, bindings, behaviours, lookup APIs, CoreWCF mapping, code generation, or CLI tooling.
+
+### Phase 1 test status
+
+The current Phase 1 test suite has passed:
+
+- total tests: 6
+- passed: 6
+- failed: 0
 
 ## Phase 2: Typed WCF model
 
@@ -216,7 +258,8 @@ The MVP should include:
 
 - `netstandard2.0;net8.0` target frameworks
 - no CoreWCF dependency
-- full-fidelity raw reader
+- full-fidelity raw reader (implemented)
+- Phase 1 raw-reader implementation before typed parsing
 - typed model for services and endpoints
 - host/baseAddresses support
 - initial binding support

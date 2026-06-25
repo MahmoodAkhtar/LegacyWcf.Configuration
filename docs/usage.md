@@ -2,7 +2,7 @@
 
 This document shows how LegacyWcf.Configuration is intended to be used by application developers.
 
-The exact public API may evolve during early implementation, but the examples in this document express the intended developer experience.
+Phase 1 raw-reader APIs are implemented. Typed service, endpoint, binding, behaviour, and lookup examples later in this document describe the intended developer experience for later phases.
 
 ## Install
 
@@ -23,16 +23,57 @@ if (!result.Success)
 {
     foreach (var diagnostic in result.Diagnostics)
     {
+        Console.WriteLine($"{diagnostic.Code}: {diagnostic.Severity}: {diagnostic.Message}");
+    }
+
+    return;
+}
+
+var config = result.Configuration!;
+```
+
+The reader supports `app.config`, `web.config`, and external `.config` files.
+
+
+## Phase 1 usage: read the raw system.serviceModel tree
+
+The implemented Phase 1 API supports reading the raw `<system.serviceModel>` tree before any typed WCF model is added.
+
+```csharp
+using LegacyWcf.Configuration;
+
+var result = LegacyWcfConfigurationReader.Read("web.config");
+
+if (!result.Success)
+{
+    foreach (var diagnostic in result.Diagnostics)
+    {
         Console.WriteLine($"{diagnostic.Severity}: {diagnostic.Message}");
     }
 
     return;
 }
 
-var config = result.Configuration;
+var raw = result.Configuration!.RawSystemServiceModel;
+
+Console.WriteLine(raw.Name);
+Console.WriteLine(raw.Path);
+Console.WriteLine(raw.RawXml);
 ```
 
-The reader should support `app.config`, `web.config`, and external `.config` files.
+During Phase 1, the main consumer-facing value is raw XML preservation. Typed service, endpoint, binding, behaviour, and lookup examples later in this document describe the intended developer experience for later phases.
+
+## Phase 1 diagnostics
+
+Phase 1 returns diagnostics instead of throwing for normal read outcomes such as:
+
+- file not found
+- file cannot be read
+- malformed XML
+- missing `<configuration>`
+- missing `<system.serviceModel>`
+
+Malformed XML and unreadable files return `Success == false`. Missing `<system.serviceModel>` also returns `Success == false`, but is reported clearly and is not confused with malformed XML.
 
 ## Inspect diagnostics
 
@@ -45,17 +86,28 @@ foreach (var diagnostic in result.Diagnostics)
 }
 ```
 
-Diagnostics may include:
+Phase 1 diagnostic codes are:
 
-- malformed XML
-- missing `<configuration>`
-- missing `<system.serviceModel>`
+| Code | Meaning |
+|---|---|
+| `LWC0001` | Missing/blank path or file not found. |
+| `LWC0002` | File could not be read. |
+| `LWC0003` | XML could not be loaded or parsed. |
+| `LWC0004` | Root `<configuration>` element was not found. |
+| `LWC0005` | `<system.serviceModel>` was not found under `<configuration>`. |
+
+Future diagnostics may include:
+
 - duplicate named services
 - duplicate named bindings
 - unknown elements preserved
 - unknown attributes preserved
 - references to missing binding configurations
 - references to missing behaviour configurations
+
+## Future typed model usage
+
+The following examples are intended for later phases after typed WCF models and lookup APIs are implemented.
 
 ## Enumerate services
 

@@ -24,10 +24,10 @@ Root namespace:
 LegacyWcf.Configuration
 ```
 
-Suggested solution name:
+Current solution file:
 
 ```text
-LegacyWcf.Configuration.sln
+LegacyWcf.Configuration.slnx
 ```
 
 This project is separate from LegacyLens.NET.
@@ -111,6 +111,192 @@ Rationale:
 - `net8.0` gives modern .NET consumers a native target.
 - Shared code should avoid APIs unavailable in `netstandard2.0` unless conditional compilation is used.
 
+
+## Source organisation and code style conventions
+
+These conventions capture the agreed working rules for namespaces, source layout, usings, project settings, and tests. Future implementation chats should follow these conventions so the project does not repeatedly revisit the same decisions.
+
+### Public API file placement
+
+For the current stage of the project, public API types should live directly under:
+
+```text
+src/LegacyWcf.Configuration/
+```
+
+Do not create folders such as `Reading/`, `Raw/`, `Model/`, or `Diagnostics/` just to group public API types.
+
+The current convention is:
+
+```text
+Top-level project folder = public API
+Internal/                = implementation detail
+```
+
+Example:
+
+```text
+src/LegacyWcf.Configuration/
+├── LegacyWcfConfigurationReader.cs
+├── LegacyWcfConfigurationReadResult.cs
+├── LegacyWcfConfiguration.cs
+├── LegacyWcfElement.cs
+├── LegacyWcfDiagnostic.cs
+├── LegacyWcfDiagnosticSeverity.cs
+└── Internal/
+    └── LegacyWcfRawElementBuilder.cs
+```
+
+This keeps the maintainer mental model aligned with the consumer mental model: the public API is easy to find at the top level, while implementation details are separated.
+
+### Namespace convention
+
+Public API types should use the root namespace:
+
+```csharp
+namespace LegacyWcf.Configuration;
+```
+
+Internal implementation-only types should use:
+
+```csharp
+namespace LegacyWcf.Configuration.Internal;
+```
+
+Avoid introducing sub-namespaces for public API types unless the public API has grown enough that the added structure clearly improves maintainability.
+
+### Folder rule
+
+Use folders only when they communicate something useful.
+
+Good:
+
+```text
+Internal/
+```
+
+because it clearly separates implementation details from the public API.
+
+Avoid:
+
+```text
+Reading/
+Raw/
+Model/
+Diagnostics/
+```
+
+for the current Phase 1 public API because this adds friction when locating public types and does not currently provide enough benefit.
+
+### Project file settings
+
+Enable nullable reference types at project level:
+
+```xml
+<Nullable>enable</Nullable>
+```
+
+Do not add `#nullable enable` at the top of every `.cs` file.
+
+Disable implicit usings for this library:
+
+```xml
+<ImplicitUsings>disable</ImplicitUsings>
+```
+
+Use a modern language version explicitly:
+
+```xml
+<LangVersion>latest</LangVersion>
+```
+
+These settings keep the code clear and Rider-friendly, especially while the library multi-targets `netstandard2.0;net8.0`.
+
+### Explicit usings
+
+Use explicit `using` directives in each file for namespaces the file actually depends on.
+
+Do not remove a `using` simply because implicit usings could theoretically provide it.
+
+For example, if a file uses:
+
+```csharp
+IReadOnlyList<T>
+IReadOnlyDictionary<TKey, TValue>
+Dictionary<TKey, TValue>
+List<T>
+```
+
+then keep:
+
+```csharp
+using System.Collections.Generic;
+```
+
+The file should clearly show its real dependencies.
+
+### Test file organisation
+
+Do not automatically create one test file per production type.
+
+Prefer behaviour-focused tests. For Phase 1, it is acceptable for `LegacyWcfConfigurationReaderTests.cs` to test the public read behaviour end-to-end:
+
+```text
+file path
+  -> reader
+  -> result
+  -> configuration
+  -> raw element tree
+  -> diagnostics
+```
+
+Simple DTO/model types such as these do not need separate test files unless they gain behaviour of their own:
+
+```text
+LegacyWcfConfigurationReadResult
+LegacyWcfConfiguration
+LegacyWcfElement
+LegacyWcfDiagnostic
+LegacyWcfDiagnosticSeverity
+```
+
+### Test temp-file cleanup
+
+If tests write temporary config files, they must clean them up.
+
+Use a per-test temporary directory and delete it in `Dispose()`:
+
+```csharp
+public sealed class LegacyWcfConfigurationReaderTests : IDisposable
+{
+    private readonly string _tempDirectory;
+
+    public LegacyWcfConfigurationReaderTests()
+    {
+        _tempDirectory = Path.Combine(
+            Path.GetTempPath(),
+            "LegacyWcf.Configuration.Tests",
+            Guid.NewGuid().ToString("N"));
+
+        Directory.CreateDirectory(_tempDirectory);
+    }
+
+    public void Dispose()
+    {
+        if (Directory.Exists(_tempDirectory))
+        {
+            Directory.Delete(_tempDirectory, recursive: true);
+        }
+    }
+}
+```
+
+Avoid writing directly to `Path.GetTempPath()` without cleanup.
+
+### Line endings
+
+Generated or modified files should use Windows-style CRLF line endings.
+
 ## MVP scope
 
 The MVP should include:
@@ -141,6 +327,84 @@ High-value typed model areas:
 - endpoint behaviours
 - client endpoints
 - serviceHostingEnvironment
+
+
+## Current implementation status
+
+**Phase 1: Full-fidelity reader is implemented.**
+
+The current code reads and preserves the raw `<system.serviceModel>` XML tree. It does not implement typed services, typed endpoints, typed bindings, typed behaviours, lookup APIs, CoreWCF mapping, code generation, or CLI tooling.
+
+Implemented first useful output:
+
+```csharp
+var result = LegacyWcfConfigurationReader.Read("web.config");
+
+if (result.Success)
+{
+    var raw = result.Configuration!.RawSystemServiceModel;
+}
+```
+
+Current Phase 1 files:
+
+```text
+src/LegacyWcf.Configuration/
+├── LegacyWcfConfigurationReader.cs
+├── LegacyWcfConfigurationReadResult.cs
+├── LegacyWcfConfiguration.cs
+├── LegacyWcfElement.cs
+├── LegacyWcfDiagnostic.cs
+├── LegacyWcfDiagnosticSeverity.cs
+└── Internal/
+    └── LegacyWcfRawElementBuilder.cs
+```
+
+Public API files should remain at the project root for Phase 1. Do not reintroduce public API folders such as `Reading/`, `Raw/`, `Model/`, or `Diagnostics/` unless the project has grown enough that the extra structure clearly improves maintainability.
+
+Current Phase 1 diagnostics cover:
+
+- missing or blank file path
+- file not found
+- file cannot be read
+- malformed XML
+- missing `<configuration>`
+- missing `<system.serviceModel>`
+
+Current diagnostic codes:
+
+| Code | Meaning |
+|---|---|
+| `LWC0001` | Missing/blank path or file not found. |
+| `LWC0002` | File could not be read. |
+| `LWC0003` | XML could not be loaded or parsed. |
+| `LWC0004` | Root `<configuration>` element was not found. |
+| `LWC0005` | `<system.serviceModel>` was not found under `<configuration>`. |
+
+Current Phase 1 tests cover:
+
+- valid `<system.serviceModel>` raw tree preservation
+- missing file diagnostics
+- malformed XML diagnostics
+- missing `<configuration>` diagnostics
+- missing `<system.serviceModel>` diagnostics
+- unknown custom element and attribute preservation
+
+Current test status:
+
+- total tests: 6
+- passed: 6
+- failed: 0
+
+Future AI implementation chats should preserve this boundary: raw XML preservation first, typed parsing later.
+
+## Current next implementation slice
+
+The next implementation step is **Phase 2: Typed WCF model**.
+
+Phase 2 should build typed models on top of the preserved raw tree. Every typed object should retain access to its source `LegacyWcfElement`.
+
+Phase 2 should still avoid CoreWCF mapping, code generation, and CLI tooling.
 
 ## Raw model
 
@@ -393,25 +657,44 @@ Do not:
 - target only `net8.0` unless the project direction changes
 - overfit the design to only one sample config file
 
-## Suggested initial repository structure
+## Current repository structure
 
 ```text
 LegacyWcf.Configuration/
-├── README.md
-├── CHANGELOG.md
+│
 ├── docs/
 │   ├── ai-context.md
-│   ├── usage.md
 │   ├── architecture.md
 │   ├── configuration-spec.md
-│   └── roadmap.md
+│   ├── roadmap.md
+│   └── usage.md
+│
 ├── src/
 │   └── LegacyWcf.Configuration/
+│       ├── LegacyWcf.Configuration.csproj
+│       ├── LegacyWcfConfiguration.cs
+│       ├── LegacyWcfConfigurationReader.cs
+│       ├── LegacyWcfConfigurationReadResult.cs
+│       ├── LegacyWcfDiagnostic.cs
+│       ├── LegacyWcfDiagnosticSeverity.cs
+│       ├── LegacyWcfElement.cs
+│       └── Internal/
+│           └── LegacyWcfRawElementBuilder.cs
+│
 ├── tests/
 │   └── LegacyWcf.Configuration.Tests/
-└── samples/
-    └── LegacyWcf.Configuration.SampleConsole/
+│       ├── LegacyWcf.Configuration.Tests.csproj
+│       └── LegacyWcfConfigurationReaderTests.cs
+│
+├── .gitignore
+├── CHANGELOG.md
+├── LegacyWcf.Configuration.slnx
+├── LICENSE
+├── README.md
+├── merge.ps1
+└── test.ps1
 ```
+
 
 ## Useful implementation prompt starter
 
@@ -420,5 +703,5 @@ Use this when starting a new implementation chat:
 ```text
 You must read the attached files for context and reference. This project is LegacyWcf.Configuration, a modern .NET library for reading, preserving, modelling, and querying legacy WCF <system.serviceModel> configuration. It is not LegacyLens.NET.
 
-Implement the next slice of the MVP while preserving the design decisions in docs/ai-context.md and docs/architecture.md. The core package must target netstandard2.0;net8.0 and must not depend on CoreWCF. Unknown XML must be preserved and diagnostics should be permissive.
+Implement the next slice of the MVP, starting from the current post-Phase-1 raw-reader implementation while preserving the design decisions in docs/ai-context.md and docs/architecture.md. The core package must target netstandard2.0;net8.0 and must not depend on CoreWCF. Unknown XML must be preserved and diagnostics should be permissive. Public API files currently live at the project root, implementation-only helpers live under Internal/, nullable is enabled at project level, implicit usings are disabled, and explicit usings should be kept.
 ```
