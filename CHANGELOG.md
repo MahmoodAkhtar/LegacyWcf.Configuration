@@ -2,24 +2,20 @@
 
 All notable changes to LegacyWcf.Configuration will be documented in this file.
 
-This project should follow a simple changelog format:
+This project follows a simple changelog format:
 
-- `Added` for new features
-- `Changed` for changes in existing behaviour
-- `Fixed` for bug fixes
-- `Deprecated` for features that will be removed later
-- `Removed` for removed features
-- `Breaking Changes` for changes that require consumer action
+- Added for new features
+- Changed for changes in existing behaviour
+- Fixed for bug fixes
+- Deprecated for features that will be removed later
+- Removed for removed features
+- Breaking Changes for changes that require consumer action
 
 ## [Unreleased]
 
 ### Added
 
-- Initial project documentation.
-- Initial design direction for a full-fidelity legacy WCF `<system.serviceModel>` reader.
-- Initial documentation for raw and typed model design.
-- Initial documentation for permissive diagnostics.
-- Initial documentation for future CoreWCF adapter package boundary.
+- Nothing yet.
 
 ### Changed
 
@@ -33,16 +29,29 @@ This project should follow a simple changelog format:
 
 - None.
 
-## [0.1.0] - Unreleased
+## [0.1.0] - 2026-06-25
 
-Planned first release.
+### Added
 
-### Planned
+- Added the initial `LegacyWcfConfigurationReader.Read(string filePath)` API.
+- Added `LegacyWcfConfigurationReadResult` with `Success`, `Configuration`, and `Diagnostics`.
+- Added `LegacyWcfConfiguration` with `RawSystemServiceModel`.
+- Added `LegacyWcfElement` as the raw XML model for preserved WCF configuration elements.
+- Added `LegacyWcfDiagnostic` and `LegacyWcfDiagnosticSeverity`.
+- Added recursive raw XML preservation for `<system.serviceModel>` descendants.
+- Preserved element names, paths, attributes, children, values, raw XML, source file paths, and line numbers where practical.
+- Preserved unknown custom elements and attributes.
+- Added diagnostics for missing file paths, missing files, unreadable files, malformed XML, missing `<configuration>`, and missing `<system.serviceModel>`.
+- Added initial project documentation, usage guidance, architecture notes, configuration specification, roadmap, and AI handover context.
 
-- Read `app.config`, `web.config`, and external `.config` files.
-- Locate `<system.serviceModel>`.
-- Preserve the full XML tree under `<system.serviceModel>`.
-- Expose a raw model using `LegacyWcfElement`.
-- Expose initial typed models for services, endpoints, host, base addresses, bindings, behaviours, client endpoints, and `serviceHostingEnvironment`.
-- Provide permissive diagnostics.
-- Target `netstandard2.0` and `net8.0`.
+### Changed
+
+- Nothing yet.
+
+### Fixed
+
+- Nothing yet.
+
+### Breaking Changes
+
+- None.
