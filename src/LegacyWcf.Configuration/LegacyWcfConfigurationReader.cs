@@ -7,8 +7,36 @@ using LegacyWcf.Configuration.Internal;
 
 namespace LegacyWcf.Configuration;
 
+/// <summary>
+/// Reads legacy WCF configuration from <c>app.config</c>, <c>web.config</c>, or external
+/// <c>.config</c> files.
+/// </summary>
+/// <remarks>
+/// The Phase 1 reader locates <c>&lt;configuration&gt;/&lt;system.serviceModel&gt;</c>
+/// and preserves the raw XML tree. It does not create typed WCF service, endpoint,
+/// binding, behaviour, client, or CoreWCF models.
+/// </remarks>
 public static class LegacyWcfConfigurationReader
 {
+    /// <summary>
+    /// Reads a configuration file and attempts to locate
+    /// <c>&lt;configuration&gt;/&lt;system.serviceModel&gt;</c>.
+    /// </summary>
+    /// <param name="filePath">
+    /// The path to an <c>app.config</c>, <c>web.config</c>, or external <c>.config</c> file.
+    /// </param>
+    /// <returns>
+    /// A <see cref="LegacyWcfConfigurationReadResult"/> describing whether a usable
+    /// WCF configuration was read. When reading fails,
+    /// <see cref="LegacyWcfConfigurationReadResult.Configuration"/> is <see langword="null"/>
+    /// and <see cref="LegacyWcfConfigurationReadResult.Diagnostics"/> explains the outcome.
+    /// </returns>
+    /// <remarks>
+    /// Normal read failures, such as a missing file, malformed XML, missing
+    /// <c>&lt;configuration&gt;</c> root, or missing <c>&lt;system.serviceModel&gt;</c>
+    /// section, are reported through diagnostics rather than by returning a partially
+    /// populated configuration.
+    /// </remarks>
     public static LegacyWcfConfigurationReadResult Read(string filePath)
     {
         var sourceFilePath = GetSourceFilePath(filePath);
