@@ -43,6 +43,13 @@ This project follows a simple changelog format:
 - Preserved unknown custom elements and attributes.
 - Added diagnostics for missing file paths, missing files, unreadable files, malformed XML, missing `<configuration>`, and missing `<system.serviceModel>`.
 - Added initial project documentation, usage guidance, architecture notes, configuration specification, roadmap, and AI handover context.
+- Added NuGet package metadata for `LegacyWcf.Configuration` version `0.1.0`.
+- Added Apache 2.0 package license metadata using the `Apache-2.0` SPDX expression.
+- Added NuGet package README support using the root `README.md`.
+- Added XML documentation file generation for package builds.
+- Added symbol package generation using the `.snupkg` format.
+- Added GitHub Actions publishing for version tags matching `v*.*.*`.
+- Added NuGet Trusted Publishing support for GitHub Actions publishing without a long-lived NuGet API key.
 
 ### Changed
 
