@@ -69,12 +69,14 @@ Phase 1 does not include typed services, endpoints, bindings, behaviours, lookup
 
 ### Phase 1 test status
 
-The current Phase 1 test suite has passed:
+The latest provided test run before Stage 3 passed:
 
 - total tests: 18
 - passed: 18
 - failed: 0
 - skipped: 0
+
+Stage 3 adds 8 binding tests, bringing the expected suite size to 26 tests. Run the updated suite locally with the .NET SDK after applying these changes.
 
 ## Phase 2: Typed WCF model
 
@@ -134,41 +136,66 @@ Stage 2 does not add bindings, behaviours, client endpoints, lookup helpers, val
 
 ### Phase 2 Stage 3: initial typed bindings
 
-Status: planned next slice.
+Status: implemented.
 
-Stage 3 should add:
+Stage 3 adds initial typed support for WCF binding configuration only:
 
-- bindings
-- binding collections
-- basicHttpBinding
-- wsHttpBinding
-- netTcpBinding
-- customBinding
+- `LegacyWcfBinding`
+- `LegacyWcfBindingCollection`
+- `LegacyWcfBindings`
+- `LegacyWcfConfiguration.Bindings`
+- `basicHttpBinding`
+- `wsHttpBinding`
+- `netTcpBinding`
+- `customBinding`
+- parsing from the preserved raw `LegacyWcfElement` tree
+- raw XML fallback for every typed binding
+- tests for named binding parsing, unnamed binding preservation, unknown child preservation, missing `<bindings>`, and unknown binding groups
+
+Stage 3 does not add:
+
+- behaviours
+- service behaviours
+- endpoint behaviours
+- client endpoints
+- serviceHostingEnvironment
+- `Find(...)` or `GetRequired(...)` lookup APIs
+- endpoint lookup helpers
+- binding lookup helpers
+- validation diagnostics for duplicate bindings
+- validation diagnostics for endpoints referencing missing bindings
+- CoreWCF mapping
+- code generation
+- CLI tooling
+
+Example Stage 3 usage:
+
+```csharp
+foreach (var binding in config.Bindings.BasicHttp)
+{
+    Console.WriteLine(binding.BindingType);
+    Console.WriteLine(binding.Name);
+    Console.WriteLine(binding.RawElement.RawXml);
+}
+
+foreach (var binding in config.Bindings.NetTcp)
+{
+    Console.WriteLine(binding.Attributes["portSharingEnabled"]);
+}
+```
+
+
+### Phase 2 later typed model stages
+
+Later Phase 2 slices should add the remaining typed WCF model areas after initial binding support:
+
 - behaviours
 - service behaviours
 - endpoint behaviours
 - client endpoints
 - serviceHostingEnvironment
 
-Example:
-
-```csharp
-foreach (var service in config.Services)
-{
-    Console.WriteLine(service.Name);
-
-    foreach (var endpoint in service.Endpoints)
-    {
-        Console.WriteLine(endpoint.Contract);
-        Console.WriteLine(endpoint.Binding);
-    }
-
-    foreach (var baseAddress in service.Host?.BaseAddresses ?? [])
-    {
-        Console.WriteLine(baseAddress);
-    }
-}
-```
+These should remain additive views over the preserved raw XML tree and should not introduce CoreWCF dependencies.
 
 ## Phase 3: Retrieval APIs
 

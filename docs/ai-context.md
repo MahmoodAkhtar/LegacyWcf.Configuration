@@ -349,6 +349,8 @@ LegacyWcfServiceEndpoints
 
 **Phase 2 Stage 2: Typed service hosts, host base addresses, and host timeouts are implemented.**
 
+**Phase 2 Stage 3: Initial typed binding support is implemented.**
+
 The current code exposes typed service host configuration through:
 
 ```text
@@ -378,6 +380,9 @@ src/LegacyWcf.Configuration/
 ├── LegacyWcfDiagnosticSeverity.cs
 ├── LegacyWcfHost.cs
 ├── LegacyWcfHostTimeouts.cs
+├── LegacyWcfBinding.cs
+├── LegacyWcfBindingCollection.cs
+├── LegacyWcfBindings.cs
 ├── LegacyWcfService.cs
 ├── LegacyWcfServiceEndpoint.cs
 ├── LegacyWcfServiceEndpoints.cs
@@ -425,30 +430,68 @@ Current tests cover:
 - host without base addresses
 - `<add>` without `baseAddress`
 - unknown host child preservation
+- typed `basicHttpBinding` binding parsing
+- typed `wsHttpBinding` binding parsing
+- typed `netTcpBinding` binding parsing
+- typed `customBinding` binding parsing
+- missing `<bindings>` returns empty typed binding collections
+- unnamed bindings are preserved in typed binding collections
+- unknown binding child preservation
+- unknown binding groups remain raw-only
 
 Current test status:
 
-- total tests: 18
-- passed: 18
-- failed: 0
-- skipped: 0
+- latest provided test run before Stage 3: 18 total, 18 passed, 0 failed, 0 skipped
+- Stage 3 adds 8 binding tests, bringing the expected suite size to 26 tests
+- the updated suite should be run locally with the .NET SDK after applying these changes
 
 Future AI implementation chats should preserve this boundary: raw XML preservation first, typed parsing only as additive views over the raw tree.
 
 ## Current next implementation slice
 
-The next implementation step is **Phase 2 Stage 3: initial typed bindings**.
+The completed implementation step is **Phase 2 Stage 3: initial typed bindings**.
 
-Stage 3 should add typed binding models and binding collections for common binding groups such as:
+Stage 3 adds initial typed binding support only:
 
-- `basicHttpBinding`
-- `wsHttpBinding`
-- `netTcpBinding`
-- `customBinding`
+- `LegacyWcfBinding`
+- `LegacyWcfBindingCollection`
+- `LegacyWcfBindings`
+- `LegacyWcfConfiguration.Bindings`
+- typed collections for `basicHttpBinding`, `wsHttpBinding`, `netTcpBinding`, and `customBinding`
+- parsing from the preserved raw `LegacyWcfElement` tree
+- raw XML preservation for every typed binding
 
-Stage 3 should not implement:
+Required Stage 3 binding model shape:
+
+```text
+LegacyWcfBinding
+- string BindingType
+- string? Name
+- IReadOnlyDictionary<string, string> Attributes
+- LegacyWcfElement RawElement
+
+LegacyWcfBindingCollection
+- Count
+- indexer
+- foreach support
+- LINQ support through IEnumerable/IReadOnlyList
+- Empty static instance
+
+LegacyWcfBindings
+- LegacyWcfBindingCollection BasicHttp
+- LegacyWcfBindingCollection WsHttp
+- LegacyWcfBindingCollection NetTcp
+- LegacyWcfBindingCollection Custom
+- Empty static instance
+```
+
+Stage 3 preserves unnamed bindings with `Name == null`, preserves all `<binding>` attributes through `Attributes`, preserves unknown binding child elements through `RawElement.Children`, and preserves unknown binding groups in `RawSystemServiceModel` without creating typed models for them.
+
+Stage 3 does not implement:
 
 - behaviours
+- service behaviours
+- endpoint behaviours
 - client endpoints
 - serviceHostingEnvironment
 - `Find(...)`
@@ -536,7 +579,7 @@ LegacyWcfHostTimeouts
 - LegacyWcfElement RawElement
 ```
 
-`LegacyWcfConfiguration` should expose `LegacyWcfServices Services`, defaulting to an empty collection when no `<services>` element exists.
+`LegacyWcfConfiguration` currently exposes `LegacyWcfServices Services`, defaulting to an empty collection when no `<services>` element exists. Stage 3 adds `LegacyWcfBindings Bindings`, defaulting to `LegacyWcfBindings.Empty` when no `<bindings>` element exists.
 
 A possible shape:
 
@@ -780,6 +823,9 @@ LegacyWcf.Configuration/
 │       ├── LegacyWcfElement.cs
 │       ├── LegacyWcfHost.cs
 │       ├── LegacyWcfHostTimeouts.cs
+│       ├── LegacyWcfBinding.cs
+│       ├── LegacyWcfBindingCollection.cs
+│       ├── LegacyWcfBindings.cs
 │       ├── LegacyWcfService.cs
 │       ├── LegacyWcfServiceEndpoint.cs
 │       ├── LegacyWcfServiceEndpoints.cs

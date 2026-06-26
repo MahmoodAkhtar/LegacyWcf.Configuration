@@ -114,7 +114,7 @@ src/LegacyWcf.Configuration/
 
 Implementation-only helpers live under `Internal/`.
 
-Current Phase 1 source layout:
+Current source layout:
 
 ```text
 src/
@@ -128,6 +128,9 @@ src/
     ├── LegacyWcfElement.cs
     ├── LegacyWcfHost.cs
     ├── LegacyWcfHostTimeouts.cs
+    ├── LegacyWcfBinding.cs
+    ├── LegacyWcfBindingCollection.cs
+    ├── LegacyWcfBindings.cs
     ├── LegacyWcfService.cs
     ├── LegacyWcfServiceEndpoint.cs
     ├── LegacyWcfServiceEndpoints.cs
@@ -422,6 +425,60 @@ public sealed class LegacyWcfHostTimeouts
 Stage 2 parsing is built from `LegacyWcfElement` in `LegacyWcfTypedModelBuilder`. It reads direct service `<host>` children, reads `<baseAddresses>/<add baseAddress="..." />` values in source order, ignores missing `baseAddress` attributes in the typed list while preserving them in raw XML, and preserves unknown host children.
 
 Stage 2 does not add bindings, behaviours, client endpoints, lookup helpers, validation diagnostics, CoreWCF mapping, code generation, or CLI tooling.
+
+
+### Phase 2 Stage 3 typed binding model boundary
+
+The third typed-model slice is implemented and adds initial typed binding support only. It remains additive on top of the preserved raw model and does not validate endpoint-to-binding references.
+
+Stage 3 public API includes:
+
+```text
+LegacyWcfBinding
+LegacyWcfBindingCollection
+LegacyWcfBindings
+LegacyWcfConfiguration.Bindings
+```
+
+`LegacyWcfBinding` should expose:
+
+```csharp
+public sealed class LegacyWcfBinding
+{
+    public string BindingType { get; }
+    public string? Name { get; }
+    public IReadOnlyDictionary<string, string> Attributes { get; }
+    public LegacyWcfElement RawElement { get; }
+}
+```
+
+`BindingType` should contain the parent binding group name, such as `basicHttpBinding`, `wsHttpBinding`, `netTcpBinding`, or `customBinding`. `Name` should come from the `<binding name="..." />` attribute. `Attributes` should preserve all attributes from the `<binding>` element, including `name`. `RawElement` should point to the preserved raw `<binding>` element.
+
+`LegacyWcfBindingCollection` should be a typed enumerable collection with `Count`, indexer support, `foreach`, LINQ support through `IEnumerable`/`IReadOnlyList`, and an `Empty` static instance. It should not add `Find(...)` or `GetRequired(...)` in Stage 3.
+
+`LegacyWcfBindings` should expose:
+
+```text
+BasicHttp
+WsHttp
+NetTcp
+Custom
+```
+
+Each property should return a `LegacyWcfBindingCollection`. `LegacyWcfBindings.Empty` should be used when `<bindings>` is missing.
+
+Stage 3 parsing is built from `LegacyWcfElement` in `LegacyWcfTypedModelBuilder`. It reads known binding groups under `<bindings>`:
+
+```text
+basicHttpBinding
+wsHttpBinding
+netTcpBinding
+customBinding
+```
+
+For each known group, direct `<binding>` children become typed `LegacyWcfBinding` objects. Missing binding names do not fail the read and do not emit diagnostics in Stage 3. Unknown binding groups remain preserved in the raw tree but are not surfaced through Stage 3 typed binding collections. Unknown child elements inside a `<binding>` remain preserved through `binding.RawElement.Children`.
+
+Stage 3 does not add behaviours, service behaviours, endpoint behaviours, client endpoints, serviceHostingEnvironment, lookup helpers, validation diagnostics, CoreWCF mapping, code generation, or CLI tooling.
 
 ## Typed collections
 

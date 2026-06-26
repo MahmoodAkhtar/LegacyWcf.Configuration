@@ -25,6 +25,54 @@ internal static class LegacyWcfTypedModelBuilder
             : new LegacyWcfServices(services);
     }
 
+
+    public static LegacyWcfBindings BuildBindings(LegacyWcfElement rawSystemServiceModel)
+    {
+        if (rawSystemServiceModel is null)
+        {
+            throw new ArgumentNullException(nameof(rawSystemServiceModel));
+        }
+
+        var bindingsElement = rawSystemServiceModel.Children
+            .FirstOrDefault(child => IsNamed(child, "bindings"));
+
+        if (bindingsElement is null)
+        {
+            return LegacyWcfBindings.Empty;
+        }
+
+        return new LegacyWcfBindings(
+            basicHttp: BuildBindingCollection(bindingsElement, "basicHttpBinding"),
+            wsHttp: BuildBindingCollection(bindingsElement, "wsHttpBinding"),
+            netTcp: BuildBindingCollection(bindingsElement, "netTcpBinding"),
+            custom: BuildBindingCollection(bindingsElement, "customBinding"));
+    }
+
+    private static LegacyWcfBindingCollection BuildBindingCollection(
+        LegacyWcfElement bindingsElement,
+        string bindingType)
+    {
+        var bindings = bindingsElement.Children
+            .Where(child => IsNamed(child, bindingType))
+            .SelectMany(bindingGroup => bindingGroup.Children)
+            .Where(child => IsNamed(child, "binding"))
+            .Select(bindingElement => BuildBinding(bindingType, bindingElement))
+            .ToList();
+
+        return bindings.Count == 0
+            ? LegacyWcfBindingCollection.Empty
+            : new LegacyWcfBindingCollection(bindings);
+    }
+
+    private static LegacyWcfBinding BuildBinding(string bindingType, LegacyWcfElement bindingElement)
+    {
+        return new LegacyWcfBinding(
+            bindingType: bindingType,
+            name: GetAttributeOrNull(bindingElement, "name"),
+            attributes: bindingElement.Attributes,
+            rawElement: bindingElement);
+    }
+
     private static LegacyWcfService BuildService(LegacyWcfElement serviceElement)
     {
         var endpoints = serviceElement.Children

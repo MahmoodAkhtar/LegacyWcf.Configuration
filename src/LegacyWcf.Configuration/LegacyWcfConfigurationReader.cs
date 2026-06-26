@@ -14,8 +14,8 @@ namespace LegacyWcf.Configuration;
 /// <remarks>
 /// The reader locates <c>&lt;configuration&gt;/&lt;system.serviceModel&gt;</c>,
 /// preserves the raw XML tree, and builds additive typed models for supported WCF concepts.
-/// Phase 2 Stage 2 supports typed services, service endpoints, service hosts, and host
-/// base addresses.
+/// Phase 2 Stage 3 supports typed services, service endpoints, service hosts, host
+/// base addresses, and initial typed binding enumeration.
 /// </remarks>
 public static class LegacyWcfConfigurationReader
 {
@@ -124,7 +124,8 @@ public static class LegacyWcfConfigurationReader
 
         var diagnostics = Array.Empty<LegacyWcfDiagnostic>();
         var services = LegacyWcfTypedModelBuilder.BuildServices(rawSystemServiceModel);
-        var configuration = new LegacyWcfConfiguration(rawSystemServiceModel, diagnostics, services);
+        var bindings = LegacyWcfTypedModelBuilder.BuildBindings(rawSystemServiceModel);
+        var configuration = new LegacyWcfConfiguration(rawSystemServiceModel, diagnostics, services, bindings);
 
         return new LegacyWcfConfigurationReadResult(
             success: true,

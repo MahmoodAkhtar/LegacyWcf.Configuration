@@ -142,6 +142,39 @@ Unknown host child elements should be preserved through `service.Host.RawElement
 
 Stage 2 does not add typed bindings, behaviours, client endpoints, serviceHostingEnvironment, lookup APIs, validation diagnostics, CoreWCF mapping, code generation, or CLI tooling.
 
+
+## Phase 2 Stage 3 typed binding model contract
+
+Phase 2 Stage 3 adds initial typed models for common WCF binding groups only. It is implemented and remains additive on top of the preserved raw model.
+
+Stage 3 adds:
+
+- `config.Bindings`
+- `LegacyWcfBinding`
+- `LegacyWcfBindingCollection`
+- `LegacyWcfBindings`
+- `config.Bindings.BasicHttp`
+- `config.Bindings.WsHttp`
+- `config.Bindings.NetTcp`
+- `config.Bindings.Custom`
+
+`LegacyWcfBinding` should expose:
+
+```text
+BindingType
+Name
+Attributes
+RawElement
+```
+
+`BindingType` should contain the parent binding group name, such as `basicHttpBinding`, `wsHttpBinding`, `netTcpBinding`, or `customBinding`. `Name` should come from the `<binding name="..." />` attribute and should be `null` when the attribute is missing. `Attributes` should preserve all attributes from the `<binding>` element, including `name`. `RawElement` should point to the preserved raw `<binding>` element.
+
+If `<bindings>` is missing, `config.Bindings` should be non-null and all known binding collections should be empty. If a known binding group exists but has no direct `<binding>` children, the corresponding typed collection should be empty.
+
+Unknown binding groups should be preserved in `config.RawSystemServiceModel` but should not be surfaced through Stage 3 typed binding collections. Unknown child elements inside a `<binding>` should be preserved through `binding.RawElement.Children`.
+
+Stage 3 does not emit diagnostics for unnamed bindings, unknown binding groups, unknown binding child elements, duplicate bindings, or endpoints referencing missing binding configurations. Validation belongs to a later phase.
+
 ## Scenario 1: Simple service with endpoint
 
 Stage 1 typed model target: yes.
@@ -356,6 +389,8 @@ No diagnostics expected.
 
 ## Scenario 4: Named basicHttpBinding
 
+Stage 3 typed model target: yes, implemented.
+
 ### Input XML
 
 ```xml
@@ -383,8 +418,9 @@ No diagnostics expected.
 ```text
 config.Bindings.BasicHttp.Count == 1
 
-binding.Type == "basicHttpBinding"
+binding.BindingType == "basicHttpBinding"
 binding.Name == "CustomerBinding"
+binding.Attributes["name"] == "CustomerBinding"
 binding.Attributes["maxReceivedMessageSize"] == "65536"
 binding.Attributes["openTimeout"] == "00:01:00"
 binding.Attributes["closeTimeout"] == "00:01:00"
@@ -398,6 +434,8 @@ The exact binding model may evolve, but the binding element and its attributes m
 
 ```text
 Raw XML for <bindings>, <basicHttpBinding>, <binding>, and <security> is preserved.
+`binding.RawElement.Name == "binding"`.
+`binding.RawElement.Children` contains the preserved `<security>` element.
 ```
 
 ### Expected diagnostics
@@ -407,6 +445,8 @@ No diagnostics expected.
 ```
 
 ## Scenario 5: Named netTcpBinding
+
+Stage 3 typed model target: yes, implemented.
 
 ### Input XML
 
@@ -432,7 +472,7 @@ No diagnostics expected.
 ```text
 config.Bindings.NetTcp.Count == 1
 
-binding.Type == "netTcpBinding"
+binding.BindingType == "netTcpBinding"
 binding.Name == "CustomerTcpBinding"
 binding.Attributes["portSharingEnabled"] == "true"
 binding.Attributes["maxReceivedMessageSize"] == "1048576"
@@ -442,12 +482,222 @@ binding.Attributes["maxReceivedMessageSize"] == "1048576"
 
 ```text
 Raw XML for the netTcpBinding binding and child elements is preserved.
+`binding.RawElement.Children` contains the preserved `<security>` element.
 ```
 
 ### Expected diagnostics
 
 ```text
 No diagnostics expected.
+```
+
+
+## Scenario 5a: Named wsHttpBinding
+
+Stage 3 typed model target: yes, implemented.
+
+### Input XML
+
+```xml
+<configuration>
+  <system.serviceModel>
+    <bindings>
+      <wsHttpBinding>
+        <binding
+          name="CustomerWsBinding"
+          maxReceivedMessageSize="65536">
+          <security mode="Message" />
+        </binding>
+      </wsHttpBinding>
+    </bindings>
+  </system.serviceModel>
+</configuration>
+```
+
+### Expected typed model
+
+```text
+config.Bindings.WsHttp.Count == 1
+
+binding.BindingType == "wsHttpBinding"
+binding.Name == "CustomerWsBinding"
+binding.Attributes["name"] == "CustomerWsBinding"
+binding.Attributes["maxReceivedMessageSize"] == "65536"
+```
+
+### Raw XML preservation
+
+```text
+binding.RawElement is not null
+binding.RawElement.Name == "binding"
+binding.RawElement.Children contains <security>
+```
+
+### Expected diagnostics
+
+```text
+No diagnostics expected in Stage 3.
+```
+
+## Scenario 5b: Named customBinding
+
+Stage 3 typed model target: yes, implemented.
+
+### Input XML
+
+```xml
+<configuration>
+  <system.serviceModel>
+    <bindings>
+      <customBinding>
+        <binding name="CustomerCustomBinding">
+          <textMessageEncoding messageVersion="Soap12" />
+          <httpTransport maxReceivedMessageSize="65536" />
+        </binding>
+      </customBinding>
+    </bindings>
+  </system.serviceModel>
+</configuration>
+```
+
+### Expected typed model
+
+```text
+config.Bindings.Custom.Count == 1
+
+binding.BindingType == "customBinding"
+binding.Name == "CustomerCustomBinding"
+binding.Attributes["name"] == "CustomerCustomBinding"
+```
+
+### Raw XML preservation
+
+```text
+binding.RawElement is not null
+binding.RawElement.Children contains <textMessageEncoding>
+binding.RawElement.Children contains <httpTransport>
+```
+
+### Expected diagnostics
+
+```text
+No diagnostics expected in Stage 3.
+```
+
+## Scenario 5c: Missing bindings element
+
+Stage 3 typed model target: yes, implemented.
+
+### Input XML
+
+```xml
+<configuration>
+  <system.serviceModel>
+  </system.serviceModel>
+</configuration>
+```
+
+### Expected typed model
+
+```text
+config.Bindings is not null
+config.Bindings.BasicHttp.Count == 0
+config.Bindings.WsHttp.Count == 0
+config.Bindings.NetTcp.Count == 0
+config.Bindings.Custom.Count == 0
+```
+
+### Raw XML preservation
+
+```text
+config.RawSystemServiceModel is preserved.
+```
+
+### Expected diagnostics
+
+```text
+No diagnostics expected in Stage 3.
+```
+
+## Scenario 5d: Unnamed binding is preserved
+
+Stage 3 typed model target: yes, implemented.
+
+### Input XML
+
+```xml
+<configuration>
+  <system.serviceModel>
+    <bindings>
+      <basicHttpBinding>
+        <binding maxReceivedMessageSize="65536" />
+      </basicHttpBinding>
+    </bindings>
+  </system.serviceModel>
+</configuration>
+```
+
+### Expected typed model
+
+```text
+config.Bindings.BasicHttp.Count == 1
+
+binding.BindingType == "basicHttpBinding"
+binding.Name == null
+binding.Attributes["maxReceivedMessageSize"] == "65536"
+```
+
+### Raw XML preservation
+
+```text
+binding.RawElement is not null
+binding.RawElement.Name == "binding"
+```
+
+### Expected diagnostics
+
+```text
+No diagnostics expected in Stage 3.
+```
+
+## Scenario 5e: Unknown binding group is raw-only
+
+Stage 3 typed model target: yes for raw preservation, no for typed modelling; implemented.
+
+### Input XML
+
+```xml
+<configuration>
+  <system.serviceModel>
+    <bindings>
+      <unknownLegacyBinding>
+        <binding name="LegacyBinding" />
+      </unknownLegacyBinding>
+    </bindings>
+  </system.serviceModel>
+</configuration>
+```
+
+### Expected typed model
+
+```text
+config.Bindings.BasicHttp.Count == 0
+config.Bindings.WsHttp.Count == 0
+config.Bindings.NetTcp.Count == 0
+config.Bindings.Custom.Count == 0
+```
+
+### Raw XML preservation
+
+```text
+The <unknownLegacyBinding> element is preserved under config.RawSystemServiceModel.
+The nested <binding name="LegacyBinding" /> element is preserved in raw XML.
+```
+
+### Expected diagnostics
+
+```text
+No diagnostics expected in Stage 3.
 ```
 
 ## Scenario 6: Service behaviour
@@ -804,7 +1054,8 @@ All XML should be preserved.
 ### Expected diagnostics
 
 ```text
-A warning diagnostic should indicate that the endpoint references a binding configuration that was not found.
+No diagnostic is expected in Phase 2 Stage 3.
+A later validation phase should add a warning diagnostic indicating that the endpoint references a binding configuration that was not found.
 The reader should not fail solely because the reference is unresolved.
 ```
 

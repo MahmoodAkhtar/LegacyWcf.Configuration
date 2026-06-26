@@ -299,7 +299,7 @@ public sealed class LegacyWcfConfigurationReaderTests : IDisposable
 
         Assert.True(result.Success);
         Assert.NotNull(result.Configuration);
-        Assert.Equal(0, result.Configuration!.Services.Count);
+        Assert.Empty(result.Configuration!.Services);
         Assert.NotNull(result.Configuration.RawSystemServiceModel);
         Assert.Equal("system.serviceModel", result.Configuration.RawSystemServiceModel.Name);
     }
@@ -491,7 +491,7 @@ public sealed class LegacyWcfConfigurationReaderTests : IDisposable
 
         var service = Assert.Single(result.Configuration!.Services);
         Assert.NotNull(service.Host);
-        Assert.Equal(0, service.Host!.BaseAddresses.Count);
+        Assert.Empty(service.Host!.BaseAddresses);
         Assert.Equal("host", service.Host.RawElement.Name);
     }
 
@@ -521,7 +521,7 @@ public sealed class LegacyWcfConfigurationReaderTests : IDisposable
 
         var service = Assert.Single(result.Configuration!.Services);
         Assert.NotNull(service.Host);
-        Assert.Equal(0, service.Host!.BaseAddresses.Count);
+        Assert.Empty(service.Host!.BaseAddresses);
 
         var baseAddresses = Assert.Single(service.Host.RawElement.Children, child => child.Name == "baseAddresses");
         var add = Assert.Single(baseAddresses.Children, child => child.Name == "add");
@@ -556,6 +556,268 @@ public sealed class LegacyWcfConfigurationReaderTests : IDisposable
         var customHostSetting = Assert.Single(service.Host!.RawElement.Children, child => child.Name == "customHostSetting");
         Assert.Equal("abc", customHostSetting.Attributes["value"]);
         Assert.False(customHostSetting.IsKnownElement);
+    }
+
+
+    [Fact]
+    public void Read_WhenBasicHttpBindingExists_PopulatesTypedBasicHttpBinding()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <bindings>
+      <basicHttpBinding>
+        <binding
+          name="CustomerBinding"
+          maxReceivedMessageSize="65536"
+          openTimeout="00:01:00"
+          closeTimeout="00:01:00"
+          sendTimeout="00:02:00"
+          receiveTimeout="00:10:00">
+          <security mode="Transport" />
+        </binding>
+      </basicHttpBinding>
+    </bindings>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+
+        var binding = Assert.Single(result.Configuration!.Bindings.BasicHttp);
+        Assert.Equal("basicHttpBinding", binding.BindingType);
+        Assert.Equal("CustomerBinding", binding.Name);
+        Assert.Equal("CustomerBinding", binding.Attributes["name"]);
+        Assert.Equal("65536", binding.Attributes["maxReceivedMessageSize"]);
+        Assert.Equal("00:01:00", binding.Attributes["openTimeout"]);
+        Assert.Equal("00:01:00", binding.Attributes["closeTimeout"]);
+        Assert.Equal("00:02:00", binding.Attributes["sendTimeout"]);
+        Assert.Equal("00:10:00", binding.Attributes["receiveTimeout"]);
+        Assert.NotNull(binding.RawElement);
+        Assert.Equal("binding", binding.RawElement.Name);
+        Assert.Single(binding.RawElement.Children, child => child.Name == "security");
+    }
+
+    [Fact]
+    public void Read_WhenNetTcpBindingExists_PopulatesTypedNetTcpBinding()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <bindings>
+      <netTcpBinding>
+        <binding
+          name="CustomerTcpBinding"
+          portSharingEnabled="true"
+          maxReceivedMessageSize="1048576">
+          <security mode="Transport" />
+        </binding>
+      </netTcpBinding>
+    </bindings>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+
+        var binding = Assert.Single(result.Configuration!.Bindings.NetTcp);
+        Assert.Equal("netTcpBinding", binding.BindingType);
+        Assert.Equal("CustomerTcpBinding", binding.Name);
+        Assert.Equal("true", binding.Attributes["portSharingEnabled"]);
+        Assert.Equal("1048576", binding.Attributes["maxReceivedMessageSize"]);
+        Assert.Single(binding.RawElement.Children, child => child.Name == "security");
+    }
+
+    [Fact]
+    public void Read_WhenWsHttpBindingExists_PopulatesTypedWsHttpBinding()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <bindings>
+      <wsHttpBinding>
+        <binding
+          name="CustomerWsBinding"
+          maxReceivedMessageSize="65536">
+          <security mode="Message" />
+        </binding>
+      </wsHttpBinding>
+    </bindings>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+
+        var binding = Assert.Single(result.Configuration!.Bindings.WsHttp);
+        Assert.Equal("wsHttpBinding", binding.BindingType);
+        Assert.Equal("CustomerWsBinding", binding.Name);
+        Assert.Equal("65536", binding.Attributes["maxReceivedMessageSize"]);
+        Assert.NotNull(binding.RawElement);
+        Assert.Equal("binding", binding.RawElement.Name);
+        Assert.Single(binding.RawElement.Children, child => child.Name == "security");
+    }
+
+    [Fact]
+    public void Read_WhenCustomBindingExists_PopulatesTypedCustomBinding()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <bindings>
+      <customBinding>
+        <binding name="CustomerCustomBinding">
+          <textMessageEncoding messageVersion="Soap12" />
+          <httpTransport maxReceivedMessageSize="65536" />
+        </binding>
+      </customBinding>
+    </bindings>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+
+        var binding = Assert.Single(result.Configuration!.Bindings.Custom);
+        Assert.Equal("customBinding", binding.BindingType);
+        Assert.Equal("CustomerCustomBinding", binding.Name);
+        Assert.Single(binding.RawElement.Children, child => child.Name == "textMessageEncoding");
+        Assert.Single(binding.RawElement.Children, child => child.Name == "httpTransport");
+    }
+
+    [Fact]
+    public void Read_WhenBindingsElementIsMissing_BindingsCollectionsAreEmpty()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <services>
+      <service name="MyCompany.Services.CustomerService">
+        <host>
+          <baseAddresses>
+            <add baseAddress="http://localhost:8080/CustomerService" />
+          </baseAddresses>
+        </host>
+        <endpoint contract="MyCompany.Services.ICustomerService" />
+      </service>
+    </services>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+        Assert.Empty(result.Configuration!.Bindings.BasicHttp);
+        Assert.Empty(result.Configuration.Bindings.WsHttp);
+        Assert.Empty(result.Configuration.Bindings.NetTcp);
+        Assert.Empty(result.Configuration.Bindings.Custom);
+
+        var service = Assert.Single(result.Configuration.Services);
+        Assert.NotNull(service.Host);
+        Assert.Single(service.Host!.BaseAddresses);
+        Assert.Single(service.Endpoints);
+    }
+
+    [Fact]
+    public void Read_WhenBindingNameIsMissing_PreservesUnnamedBinding()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <bindings>
+      <basicHttpBinding>
+        <binding maxReceivedMessageSize="65536" />
+      </basicHttpBinding>
+    </bindings>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+
+        var binding = Assert.Single(result.Configuration!.Bindings.BasicHttp);
+        Assert.Equal("basicHttpBinding", binding.BindingType);
+        Assert.Null(binding.Name);
+        Assert.Equal("65536", binding.Attributes["maxReceivedMessageSize"]);
+        Assert.NotNull(binding.RawElement);
+        Assert.Equal("binding", binding.RawElement.Name);
+    }
+
+    [Fact]
+    public void Read_WhenBindingContainsUnknownChild_PreservesRawChild()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <bindings>
+      <basicHttpBinding>
+        <binding name="CustomerBinding">
+          <customBindingChild value="abc" />
+        </binding>
+      </basicHttpBinding>
+    </bindings>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+        Assert.Empty(result.Diagnostics);
+
+        var binding = Assert.Single(result.Configuration!.Bindings.BasicHttp);
+        var customChild = Assert.Single(binding.RawElement.Children, child => child.Name == "customBindingChild");
+        Assert.Equal("abc", customChild.Attributes["value"]);
+        Assert.False(customChild.IsKnownElement);
+    }
+
+    [Fact]
+    public void Read_WhenUnknownBindingGroupExists_PreservesRawXmlButDoesNotTypedModelIt()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <bindings>
+      <unknownLegacyBinding>
+        <binding name="LegacyBinding" />
+      </unknownLegacyBinding>
+    </bindings>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+        Assert.Empty(result.Diagnostics);
+        Assert.Empty(result.Configuration!.Bindings.BasicHttp);
+        Assert.Empty(result.Configuration.Bindings.WsHttp);
+        Assert.Empty(result.Configuration.Bindings.NetTcp);
+        Assert.Empty(result.Configuration.Bindings.Custom);
+
+        var bindings = Assert.Single(result.Configuration.RawSystemServiceModel.Children, child => child.Name == "bindings");
+        var unknownBinding = Assert.Single(bindings.Children, child => child.Name == "unknownLegacyBinding");
+        var rawBinding = Assert.Single(unknownBinding.Children, child => child.Name == "binding");
+        Assert.Equal("LegacyBinding", rawBinding.Attributes["name"]);
     }
 
     private string WriteConfig(string xml)

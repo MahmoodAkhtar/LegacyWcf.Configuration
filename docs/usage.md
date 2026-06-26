@@ -2,7 +2,7 @@
 
 This document shows how LegacyWcf.Configuration is intended to be used by application developers.
 
-Phase 1 raw-reader APIs are implemented. Phase 2 Stage 1 typed service and endpoint APIs are implemented. Phase 2 Stage 2 typed service host, host base address, and host timeout APIs are implemented. Binding, behaviour, client endpoint, and lookup examples later in this document describe the intended developer experience for later phases.
+Phase 1 raw-reader APIs are implemented. Phase 2 Stage 1 typed service and endpoint APIs are implemented. Phase 2 Stage 2 typed service host, host base address, and host timeout APIs are implemented. Phase 2 Stage 3 initial typed binding APIs are implemented. Behaviour, client endpoint, validation, and lookup examples later in this document describe the intended developer experience for later phases.
 
 ## Install
 
@@ -107,9 +107,9 @@ Future diagnostics may include:
 
 ## Phase 2 Stage 2 typed service, endpoint, and host usage
 
-The following APIs are implemented. The current typed model includes services, service endpoints, service hosts, host base addresses, host timeouts, typed enumerable collections, and raw XML fallback from those typed objects.
+The following APIs are implemented. The current typed model includes services, service endpoints, service hosts, host base addresses, host timeouts, initial typed binding collections, typed enumerable collections, and raw XML fallback from those typed objects.
 
-Stage 2 does not include `Find(...)`, `GetRequired(...)`, endpoint lookup helpers, bindings, behaviours, client endpoints, validation diagnostics, CoreWCF mapping, code generation, or CLI tooling.
+Stage 3 does not include `Find(...)`, `GetRequired(...)`, endpoint lookup helpers, binding lookup helpers, behaviours, client endpoints, validation diagnostics, CoreWCF mapping, code generation, or CLI tooling. Targeted binding lookup remains a later retrieval API concern.
 
 ## Enumerate services
 
@@ -238,9 +238,70 @@ foreach (var service in config.Services)
 
 Unknown host child elements are not modelled as first-class typed objects in Stage 2, but they remain available through `service.Host.RawElement.Children`.
 
-## Read bindings
+## Phase 2 Stage 3 usage: enumerate typed bindings
 
-A service endpoint usually references a binding type and optional named binding configuration.
+Phase 2 Stage 3 adds initial typed binding support without adding lookup helpers yet.
+
+The implemented Stage 3 API exposes:
+
+```text
+config.Bindings.BasicHttp
+config.Bindings.WsHttp
+config.Bindings.NetTcp
+config.Bindings.Custom
+```
+
+Each collection should support `Count`, indexed access, `foreach`, and LINQ through `IEnumerable`/`IReadOnlyList`.
+
+```csharp
+foreach (var binding in config.Bindings.BasicHttp)
+{
+    Console.WriteLine($"Binding type: {binding.BindingType}");
+    Console.WriteLine($"Name: {binding.Name}");
+    Console.WriteLine($"Max received message size: {binding.Attributes["maxReceivedMessageSize"]}");
+    Console.WriteLine(binding.RawElement.RawXml);
+}
+```
+
+```csharp
+foreach (var binding in config.Bindings.WsHttp)
+{
+    Console.WriteLine($"Binding type: {binding.BindingType}");
+    Console.WriteLine($"Name: {binding.Name}");
+}
+```
+
+```csharp
+foreach (var binding in config.Bindings.NetTcp)
+{
+    Console.WriteLine($"Binding type: {binding.BindingType}");
+    Console.WriteLine($"Name: {binding.Name}");
+    Console.WriteLine($"Port sharing: {binding.Attributes["portSharingEnabled"]}");
+}
+```
+
+```csharp
+foreach (var binding in config.Bindings.Custom)
+{
+    Console.WriteLine($"Binding type: {binding.BindingType}");
+    Console.WriteLine($"Name: {binding.Name}");
+
+    foreach (var child in binding.RawElement.Children)
+    {
+        Console.WriteLine($"  Raw child: {child.Name}");
+    }
+}
+```
+
+The Stage 3 binding model preserves all attributes from each `<binding>` element through `binding.Attributes`, including `name`, and preserves child elements such as `<security>`, `<textMessageEncoding>`, and `<httpTransport>` through `binding.RawElement.Children`.
+
+If `<bindings>` is missing, `config.Bindings` should still be non-null and all known binding collections should be empty. If a known binding group exists but has no `<binding>` children, the corresponding collection should be empty.
+
+If a `<binding>` is missing a `name` attribute, the binding should still be included in the typed collection with `Name == null`. Unknown binding groups should remain available through `config.RawSystemServiceModel` but should not be surfaced through Stage 3 typed binding collections.
+
+## Future targeted binding lookup
+
+A service endpoint usually references a binding type and optional named binding configuration. Lookup helpers are planned for a later retrieval API phase, not Phase 2 Stage 3.
 
 ```csharp
 var endpoint = service.Endpoints.GetRequiredByContract(
@@ -250,8 +311,6 @@ var binding = config.Bindings.GetRequired(
     endpoint.Binding,
     endpoint.BindingConfiguration);
 ```
-
-The binding model should preserve both typed high-value attributes and raw XML.
 
 ## Read behaviours
 
