@@ -351,6 +351,8 @@ LegacyWcfServiceEndpoints
 
 **Phase 2 Stage 3: Initial typed binding support is implemented.**
 
+**Phase 2 Stage 4: Initial typed behaviour support is implemented.**
+
 The current code exposes typed service host configuration through:
 
 ```text
@@ -383,6 +385,9 @@ src/LegacyWcf.Configuration/
 ├── LegacyWcfBinding.cs
 ├── LegacyWcfBindingCollection.cs
 ├── LegacyWcfBindings.cs
+├── LegacyWcfBehavior.cs
+├── LegacyWcfBehaviorCollection.cs
+├── LegacyWcfBehaviors.cs
 ├── LegacyWcfService.cs
 ├── LegacyWcfServiceEndpoint.cs
 ├── LegacyWcfServiceEndpoints.cs
@@ -441,69 +446,92 @@ Current tests cover:
 
 Current test status:
 
-- latest provided test run before Stage 3: 18 total, 18 passed, 0 failed, 0 skipped
-- Stage 3 adds 8 binding tests, bringing the expected suite size to 26 tests
-- the updated suite should be run locally with the .NET SDK after applying these changes
+- latest provided test run after Stage 4 implementation could not be executed in this environment because the .NET SDK is unavailable. The Stage 3 baseline was 26 total, 26 passed, 0 failed, 0 skipped; Stage 4 adds 8 reader tests.
 
 Future AI implementation chats should preserve this boundary: raw XML preservation first, typed parsing only as additive views over the raw tree.
 
 ## Current next implementation slice
 
-The completed implementation step is **Phase 2 Stage 3: initial typed bindings**.
+The latest implementation step is **Phase 2 Stage 4: initial typed behaviours**.
 
-Stage 3 adds initial typed binding support only:
+Stage 4 adds initial typed behaviour support only:
 
-- `LegacyWcfBinding`
-- `LegacyWcfBindingCollection`
-- `LegacyWcfBindings`
-- `LegacyWcfConfiguration.Bindings`
-- typed collections for `basicHttpBinding`, `wsHttpBinding`, `netTcpBinding`, and `customBinding`
+- `LegacyWcfBehavior`
+- `LegacyWcfBehaviorCollection`
+- `LegacyWcfBehaviors`
+- `LegacyWcfConfiguration.Behaviors`
+- typed service behaviours through `config.Behaviors.ServiceBehaviors`
+- typed endpoint behaviours through `config.Behaviors.EndpointBehaviors`
 - parsing from the preserved raw `LegacyWcfElement` tree
-- raw XML preservation for every typed binding
+- raw XML preservation for every typed behaviour
 
-Required Stage 3 binding model shape:
+Required Stage 4 behaviour model shape:
 
 ```text
-LegacyWcfBinding
-- string BindingType
+LegacyWcfBehavior
+- string BehaviorType
 - string? Name
 - IReadOnlyDictionary<string, string> Attributes
 - LegacyWcfElement RawElement
 
-LegacyWcfBindingCollection
+LegacyWcfBehaviorCollection
 - Count
 - indexer
 - foreach support
 - LINQ support through IEnumerable/IReadOnlyList
 - Empty static instance
 
-LegacyWcfBindings
-- LegacyWcfBindingCollection BasicHttp
-- LegacyWcfBindingCollection WsHttp
-- LegacyWcfBindingCollection NetTcp
-- LegacyWcfBindingCollection Custom
+LegacyWcfBehaviors
+- LegacyWcfBehaviorCollection ServiceBehaviors
+- LegacyWcfBehaviorCollection EndpointBehaviors
 - Empty static instance
 ```
 
-Stage 3 preserves unnamed bindings with `Name == null`, preserves all `<binding>` attributes through `Attributes`, preserves unknown binding child elements through `RawElement.Children`, and preserves unknown binding groups in `RawSystemServiceModel` without creating typed models for them.
+`BehaviorType` should use these exact normalized singular values:
 
-Stage 3 does not implement:
+```text
+serviceBehavior
+endpointBehavior
+```
 
-- behaviours
-- service behaviours
-- endpoint behaviours
+Stage 4 should support:
+
+- `<behaviors>/<serviceBehaviors>/<behavior>`
+- `<behaviors>/<endpointBehaviors>/<behavior>`
+- `<behaviours>/<serviceBehaviours>/<behaviour>`
+- `<behaviours>/<endpointBehaviours>/<behaviour>`
+
+The public API should keep American spelling:
+
+```text
+LegacyWcfBehavior
+LegacyWcfBehaviorCollection
+LegacyWcfBehaviors
+ServiceBehaviors
+EndpointBehaviors
+```
+
+Stage 4 should preserve unnamed behaviours with `Name == null`, preserve all behaviour attributes through `Attributes`, preserve unknown behaviour child elements through `RawElement.Children`, and preserve unknown behaviour groups in `RawSystemServiceModel` without creating typed models for them.
+
+Stage 4 does not implement:
+
 - client endpoints
 - serviceHostingEnvironment
 - `Find(...)`
 - `GetRequired(...)`
+- service lookup helpers
 - endpoint lookup helpers
 - binding lookup helpers
-- validation diagnostics for duplicates or missing references
+- behaviour lookup helpers
+- validation diagnostics for duplicate behaviours
+- validation diagnostics for services referencing missing behaviours
+- validation diagnostics for endpoints referencing missing behaviours
 - CoreWCF mapping
 - code generation
 - CLI tooling
 
 Phase 2 should still avoid CoreWCF mapping, code generation, and CLI tooling.
+
 
 ## Raw model
 
@@ -579,7 +607,7 @@ LegacyWcfHostTimeouts
 - LegacyWcfElement RawElement
 ```
 
-`LegacyWcfConfiguration` currently exposes `LegacyWcfServices Services`, defaulting to an empty collection when no `<services>` element exists. Stage 3 adds `LegacyWcfBindings Bindings`, defaulting to `LegacyWcfBindings.Empty` when no `<bindings>` element exists.
+`LegacyWcfConfiguration` currently exposes `LegacyWcfServices Services`, defaulting to an empty collection when no `<services>` element exists. Stage 3 adds `LegacyWcfBindings Bindings`, defaulting to `LegacyWcfBindings.Empty` when no `<bindings>` element exists. Stage 4 should add `LegacyWcfBehaviors Behaviors`, defaulting to `LegacyWcfBehaviors.Empty` when no `<behaviors>` or `<behaviours>` element exists.
 
 A possible shape:
 

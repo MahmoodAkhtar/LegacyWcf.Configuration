@@ -48,6 +48,62 @@ internal static class LegacyWcfTypedModelBuilder
             custom: BuildBindingCollection(bindingsElement, "customBinding"));
     }
 
+
+    public static LegacyWcfBehaviors BuildBehaviors(LegacyWcfElement rawSystemServiceModel)
+    {
+        if (rawSystemServiceModel is null)
+        {
+            throw new ArgumentNullException(nameof(rawSystemServiceModel));
+        }
+
+        var behaviorsElements = rawSystemServiceModel.Children
+            .Where(child => IsNamed(child, "behaviors") || IsNamed(child, "behaviours"))
+            .ToList();
+
+        if (behaviorsElements.Count == 0)
+        {
+            return LegacyWcfBehaviors.Empty;
+        }
+
+        return new LegacyWcfBehaviors(
+            serviceBehaviors: BuildBehaviorCollection(
+                behaviorsElements,
+                behaviorType: "serviceBehavior",
+                groupNames: new[] { "serviceBehaviors", "serviceBehaviours" }),
+            endpointBehaviors: BuildBehaviorCollection(
+                behaviorsElements,
+                behaviorType: "endpointBehavior",
+                groupNames: new[] { "endpointBehaviors", "endpointBehaviours" }));
+    }
+
+    private static LegacyWcfBehaviorCollection BuildBehaviorCollection(
+        IEnumerable<LegacyWcfElement> behaviorsElements,
+        string behaviorType,
+        IEnumerable<string> groupNames)
+    {
+        var groupNameList = groupNames.ToList();
+        var behaviors = behaviorsElements
+            .SelectMany(behaviorsElement => behaviorsElement.Children)
+            .Where(group => groupNameList.Any(groupName => IsNamed(group, groupName)))
+            .SelectMany(behaviorGroup => behaviorGroup.Children)
+            .Where(child => IsNamed(child, "behavior") || IsNamed(child, "behaviour"))
+            .Select(behaviorElement => BuildBehavior(behaviorType, behaviorElement))
+            .ToList();
+
+        return behaviors.Count == 0
+            ? LegacyWcfBehaviorCollection.Empty
+            : new LegacyWcfBehaviorCollection(behaviors);
+    }
+
+    private static LegacyWcfBehavior BuildBehavior(string behaviorType, LegacyWcfElement behaviorElement)
+    {
+        return new LegacyWcfBehavior(
+            behaviorType: behaviorType,
+            name: GetAttributeOrNull(behaviorElement, "name"),
+            attributes: behaviorElement.Attributes,
+            rawElement: behaviorElement);
+    }
+
     private static LegacyWcfBindingCollection BuildBindingCollection(
         LegacyWcfElement bindingsElement,
         string bindingType)
@@ -163,3 +219,5 @@ internal static class LegacyWcfTypedModelBuilder
         return string.Equals(element.Name, name, StringComparison.OrdinalIgnoreCase);
     }
 }
+
+

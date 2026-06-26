@@ -69,14 +69,12 @@ Phase 1 does not include typed services, endpoints, bindings, behaviours, lookup
 
 ### Phase 1 test status
 
-The latest provided test run before Stage 3 passed:
+The latest provided test run after Stage 3 passed:
 
-- total tests: 18
-- passed: 18
+- total tests: 26
+- passed: 26
 - failed: 0
 - skipped: 0
-
-Stage 3 adds 8 binding tests, bringing the expected suite size to 26 tests. Run the updated suite locally with the .NET SDK after applying these changes.
 
 ## Phase 2: Typed WCF model
 
@@ -185,13 +183,47 @@ foreach (var binding in config.Bindings.NetTcp)
 ```
 
 
+### Phase 2 Stage 4: initial typed behaviours
+
+Status: implemented.
+
+Stage 4 adds initial typed support for WCF behaviour configuration only:
+
+- `LegacyWcfBehavior`
+- `LegacyWcfBehaviorCollection`
+- `LegacyWcfBehaviors`
+- `LegacyWcfConfiguration.Behaviors`
+- service behaviours under `<behaviors>/<serviceBehaviors>/<behavior>`
+- endpoint behaviours under `<behaviors>/<endpointBehaviors>/<behavior>`
+- British legacy/custom aliases: `<behaviours>`, `<serviceBehaviours>`, `<endpointBehaviours>`, and `<behaviour>`
+- parsing from the preserved raw `LegacyWcfElement` tree
+- raw XML fallback for every typed behaviour
+- tests for named behaviours, unnamed behaviours, unknown child preservation, unknown group preservation, missing behaviours, and British spelling aliases
+
+Stage 4 uses normalized behaviour kind values:
+
+```text
+serviceBehavior
+endpointBehavior
+```
+
+Stage 4 does not add:
+
+- client endpoints
+- serviceHostingEnvironment
+- `Find(...)` or `GetRequired(...)` lookup APIs
+- behaviour lookup helpers
+- validation diagnostics for duplicate behaviours
+- validation diagnostics for services or endpoints referencing missing behaviours
+- CoreWCF mapping
+- code generation
+- CLI tooling
+
+
 ### Phase 2 later typed model stages
 
-Later Phase 2 slices should add the remaining typed WCF model areas after initial binding support:
+Later Phase 2 slices after Stage 4 should add the remaining typed WCF model areas:
 
-- behaviours
-- service behaviours
-- endpoint behaviours
 - client endpoints
 - serviceHostingEnvironment
 

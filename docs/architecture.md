@@ -131,6 +131,9 @@ src/
     ├── LegacyWcfBinding.cs
     ├── LegacyWcfBindingCollection.cs
     ├── LegacyWcfBindings.cs
+    ├── LegacyWcfBehavior.cs
+    ├── LegacyWcfBehaviorCollection.cs
+    ├── LegacyWcfBehaviors.cs
     ├── LegacyWcfService.cs
     ├── LegacyWcfServiceEndpoint.cs
     ├── LegacyWcfServiceEndpoints.cs
@@ -479,6 +482,55 @@ customBinding
 For each known group, direct `<binding>` children become typed `LegacyWcfBinding` objects. Missing binding names do not fail the read and do not emit diagnostics in Stage 3. Unknown binding groups remain preserved in the raw tree but are not surfaced through Stage 3 typed binding collections. Unknown child elements inside a `<binding>` remain preserved through `binding.RawElement.Children`.
 
 Stage 3 does not add behaviours, service behaviours, endpoint behaviours, client endpoints, serviceHostingEnvironment, lookup helpers, validation diagnostics, CoreWCF mapping, code generation, or CLI tooling.
+
+
+### Phase 2 Stage 4 typed behaviour model boundary
+
+The fourth typed-model slice is implemented and adds initial typed behaviour support only. It should remain additive on top of the preserved raw model and should not validate service or endpoint references to behaviour configurations.
+
+Stage 4 public API includes:
+
+```text
+LegacyWcfBehavior
+LegacyWcfBehaviorCollection
+LegacyWcfBehaviors
+LegacyWcfConfiguration.Behaviors
+```
+
+`LegacyWcfBehavior` exposes:
+
+```csharp
+public sealed class LegacyWcfBehavior
+{
+    public string BehaviorType { get; }
+    public string? Name { get; }
+    public IReadOnlyDictionary<string, string> Attributes { get; }
+    public LegacyWcfElement RawElement { get; }
+}
+```
+
+`BehaviorType` uses the normalized singular values `serviceBehavior` and `endpointBehavior`. `Name` should come from the source `<behavior name="..." />` or `<behaviour name="..." />` attribute and should be `null` when the attribute is missing. `Attributes` should preserve all attributes from the source behaviour element, including `name`. `RawElement` should point to the preserved raw behaviour element.
+
+`LegacyWcfBehaviorCollection` is a typed enumerable collection with `Count`, indexer support, `foreach`, LINQ support through `IEnumerable`/`IReadOnlyList`, and an `Empty` static instance. It should not add `Find(...)` or `GetRequired(...)` in Stage 4.
+
+`LegacyWcfBehaviors` exposes:
+
+```text
+ServiceBehaviors
+EndpointBehaviors
+```
+
+Stage 4 parsing is built from `LegacyWcfElement` in `LegacyWcfTypedModelBuilder`. It should read known behaviour groups under `<behaviors>` and the British legacy/custom spelling `<behaviours>`:
+
+```text
+serviceBehaviors / serviceBehaviours
+endpointBehaviors / endpointBehaviours
+behavior / behaviour
+```
+
+Unknown behaviour groups remain preserved in the raw tree but should not be surfaced through Stage 4 typed behaviour collections. Unknown child elements inside a behaviour should remain preserved through `behavior.RawElement.Children`.
+
+Stage 4 does not add client endpoints, serviceHostingEnvironment, lookup helpers, validation diagnostics, CoreWCF mapping, code generation, or CLI tooling.
 
 ## Typed collections
 

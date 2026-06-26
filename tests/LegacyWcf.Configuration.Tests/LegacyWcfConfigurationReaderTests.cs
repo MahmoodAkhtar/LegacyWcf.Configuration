@@ -820,6 +820,271 @@ public sealed class LegacyWcfConfigurationReaderTests : IDisposable
         Assert.Equal("LegacyBinding", rawBinding.Attributes["name"]);
     }
 
+
+    [Fact]
+    public void Read_WhenServiceBehaviorExists_PopulatesTypedServiceBehavior()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <behaviors>
+      <serviceBehaviors>
+        <behavior name="CustomerServiceBehavior">
+          <serviceMetadata httpGetEnabled="true" />
+          <serviceDebug includeExceptionDetailInFaults="false" />
+        </behavior>
+      </serviceBehaviors>
+    </behaviors>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+        Assert.NotNull(result.Configuration!.Behaviors);
+
+        var behavior = Assert.Single(result.Configuration.Behaviors.ServiceBehaviors);
+        Assert.Equal("serviceBehavior", behavior.BehaviorType);
+        Assert.Equal("CustomerServiceBehavior", behavior.Name);
+        Assert.Equal("CustomerServiceBehavior", behavior.Attributes["name"]);
+        Assert.NotNull(behavior.RawElement);
+        Assert.Equal("behavior", behavior.RawElement.Name);
+        Assert.Single(behavior.RawElement.Children, child => child.Name == "serviceMetadata");
+        Assert.Single(behavior.RawElement.Children, child => child.Name == "serviceDebug");
+    }
+
+    [Fact]
+    public void Read_WhenEndpointBehaviorExists_PopulatesTypedEndpointBehavior()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <behaviors>
+      <endpointBehaviors>
+        <behavior name="CustomerEndpointBehavior">
+          <clientCredentials />
+        </behavior>
+      </endpointBehaviors>
+    </behaviors>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+
+        var behavior = Assert.Single(result.Configuration!.Behaviors.EndpointBehaviors);
+        Assert.Equal("endpointBehavior", behavior.BehaviorType);
+        Assert.Equal("CustomerEndpointBehavior", behavior.Name);
+        Assert.Equal("CustomerEndpointBehavior", behavior.Attributes["name"]);
+        Assert.NotNull(behavior.RawElement);
+        Assert.Equal("behavior", behavior.RawElement.Name);
+        Assert.Single(behavior.RawElement.Children, child => child.Name == "clientCredentials");
+    }
+
+    [Fact]
+    public void Read_WhenBehaviorsElementIsMissing_BehaviorCollectionsAreEmpty()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <services>
+      <service name="MyCompany.Services.CustomerService">
+        <host>
+          <baseAddresses>
+            <add baseAddress="http://localhost:8080/CustomerService" />
+          </baseAddresses>
+        </host>
+        <endpoint contract="MyCompany.Services.ICustomerService" />
+      </service>
+    </services>
+    <bindings>
+      <basicHttpBinding>
+        <binding name="CustomerBinding" />
+      </basicHttpBinding>
+    </bindings>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+        Assert.NotNull(result.Configuration!.Behaviors);
+        Assert.Empty(result.Configuration.Behaviors.ServiceBehaviors);
+        Assert.Empty(result.Configuration.Behaviors.EndpointBehaviors);
+
+        var service = Assert.Single(result.Configuration.Services);
+        Assert.NotNull(service.Host);
+        Assert.Single(service.Host!.BaseAddresses);
+        Assert.Single(service.Endpoints);
+        Assert.Single(result.Configuration.Bindings.BasicHttp);
+    }
+
+    [Fact]
+    public void Read_WhenServiceBehaviorNameIsMissing_PreservesUnnamedServiceBehavior()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <behaviors>
+      <serviceBehaviors>
+        <behavior>
+          <serviceMetadata httpGetEnabled="true" />
+        </behavior>
+      </serviceBehaviors>
+    </behaviors>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+
+        var behavior = Assert.Single(result.Configuration!.Behaviors.ServiceBehaviors);
+        Assert.Null(behavior.Name);
+        Assert.Equal("serviceBehavior", behavior.BehaviorType);
+        Assert.NotNull(behavior.RawElement);
+        Assert.Equal("behavior", behavior.RawElement.Name);
+        Assert.Single(behavior.RawElement.Children, child => child.Name == "serviceMetadata");
+    }
+
+    [Fact]
+    public void Read_WhenEndpointBehaviorNameIsMissing_PreservesUnnamedEndpointBehavior()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <behaviors>
+      <endpointBehaviors>
+        <behavior>
+          <clientCredentials />
+        </behavior>
+      </endpointBehaviors>
+    </behaviors>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+
+        var behavior = Assert.Single(result.Configuration!.Behaviors.EndpointBehaviors);
+        Assert.Null(behavior.Name);
+        Assert.Equal("endpointBehavior", behavior.BehaviorType);
+        Assert.NotNull(behavior.RawElement);
+        Assert.Equal("behavior", behavior.RawElement.Name);
+        Assert.Single(behavior.RawElement.Children, child => child.Name == "clientCredentials");
+    }
+
+    [Fact]
+    public void Read_WhenBehaviorContainsUnknownChild_PreservesRawChild()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <behaviors>
+      <serviceBehaviors>
+        <behavior name="CustomerServiceBehavior">
+          <customBehaviorChild value="abc" />
+        </behavior>
+      </serviceBehaviors>
+    </behaviors>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+        Assert.Empty(result.Diagnostics);
+
+        var behavior = Assert.Single(result.Configuration!.Behaviors.ServiceBehaviors);
+        var customChild = Assert.Single(behavior.RawElement.Children, child => child.Name == "customBehaviorChild");
+        Assert.Equal("abc", customChild.Attributes["value"]);
+        Assert.False(customChild.IsKnownElement);
+    }
+
+    [Fact]
+    public void Read_WhenUnknownBehaviorGroupExists_PreservesRawXmlButDoesNotTypedModelIt()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <behaviors>
+      <unknownLegacyBehaviors>
+        <behavior name="LegacyBehavior" />
+      </unknownLegacyBehaviors>
+    </behaviors>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+        Assert.Empty(result.Diagnostics);
+        Assert.Empty(result.Configuration!.Behaviors.ServiceBehaviors);
+        Assert.Empty(result.Configuration.Behaviors.EndpointBehaviors);
+
+        var behaviors = Assert.Single(result.Configuration.RawSystemServiceModel.Children, child => child.Name == "behaviors");
+        var unknownBehaviors = Assert.Single(behaviors.Children, child => child.Name == "unknownLegacyBehaviors");
+        var rawBehavior = Assert.Single(unknownBehaviors.Children, child => child.Name == "behavior");
+        Assert.Equal("LegacyBehavior", rawBehavior.Attributes["name"]);
+    }
+
+    [Fact]
+    public void Read_WhenBritishSpellingBehavioursExists_PopulatesTypedBehaviours()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <behaviours>
+      <serviceBehaviours>
+        <behaviour name="BritishServiceBehaviour">
+          <serviceMetadata httpGetEnabled="true" />
+        </behaviour>
+      </serviceBehaviours>
+      <endpointBehaviours>
+        <behaviour name="BritishEndpointBehaviour">
+          <clientCredentials />
+        </behaviour>
+      </endpointBehaviours>
+    </behaviours>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+
+        var serviceBehavior = Assert.Single(result.Configuration!.Behaviors.ServiceBehaviors);
+        var endpointBehavior = Assert.Single(result.Configuration.Behaviors.EndpointBehaviors);
+
+        Assert.Equal("serviceBehavior", serviceBehavior.BehaviorType);
+        Assert.Equal("BritishServiceBehaviour", serviceBehavior.Name);
+        Assert.Equal("behaviour", serviceBehavior.RawElement.Name);
+        Assert.Single(serviceBehavior.RawElement.Children, child => child.Name == "serviceMetadata");
+
+        Assert.Equal("endpointBehavior", endpointBehavior.BehaviorType);
+        Assert.Equal("BritishEndpointBehaviour", endpointBehavior.Name);
+        Assert.Equal("behaviour", endpointBehavior.RawElement.Name);
+        Assert.Single(endpointBehavior.RawElement.Children, child => child.Name == "clientCredentials");
+    }
+
     private string WriteConfig(string xml)
     {
         var filePath = Path.Combine(_tempDirectory, $"{Guid.NewGuid():N}.config");
@@ -828,3 +1093,5 @@ public sealed class LegacyWcfConfigurationReaderTests : IDisposable
         return filePath;
     }
 }
+
+

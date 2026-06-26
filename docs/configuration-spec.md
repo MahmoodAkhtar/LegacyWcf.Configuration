@@ -175,6 +175,48 @@ Unknown binding groups should be preserved in `config.RawSystemServiceModel` but
 
 Stage 3 does not emit diagnostics for unnamed bindings, unknown binding groups, unknown binding child elements, duplicate bindings, or endpoints referencing missing binding configurations. Validation belongs to a later phase.
 
+
+## Phase 2 Stage 4 typed behaviour model contract
+
+Phase 2 Stage 4 adds initial typed models for WCF service and endpoint behaviours only. It is implemented and remains additive on top of the preserved raw model.
+
+Stage 4 adds:
+
+- `config.Behaviors`
+- `LegacyWcfBehavior`
+- `LegacyWcfBehaviorCollection`
+- `LegacyWcfBehaviors`
+- `config.Behaviors.ServiceBehaviors`
+- `config.Behaviors.EndpointBehaviors`
+
+`LegacyWcfBehavior` exposes:
+
+```text
+BehaviorType
+Name
+Attributes
+RawElement
+```
+
+`BehaviorType` uses the normalized singular values `serviceBehavior` and `endpointBehavior`. `Name` should come from the `<behavior name="..." />` or `<behaviour name="..." />` attribute and should be `null` when the attribute is missing. `Attributes` should preserve all attributes from the source behaviour element, including `name`. `RawElement` should point to the preserved raw behaviour element.
+
+If `<behaviors>` or `<behaviours>` is missing, `config.Behaviors` is non-null and both known behaviour collections should be empty. If a known behaviour group exists but has no direct behaviour children, the corresponding typed collection should be empty.
+
+Stage 4 supports British legacy/custom spelling aliases for raw XML where they appear:
+
+```text
+behaviors / behaviours
+serviceBehaviors / serviceBehaviours
+endpointBehaviors / endpointBehaviours
+behavior / behaviour
+```
+
+The public API should keep American spelling: `LegacyWcfBehavior`, `LegacyWcfBehaviorCollection`, `LegacyWcfBehaviors`, `ServiceBehaviors`, and `EndpointBehaviors`.
+
+Unknown behaviour groups are preserved in `config.RawSystemServiceModel` but should not be surfaced through Stage 4 typed behaviour collections. Unknown child elements inside a behaviour should be preserved through `behavior.RawElement.Children`.
+
+Stage 4 does not emit diagnostics for unnamed behaviours, unknown behaviour groups, unknown behaviour child elements, duplicate behaviours, or services/endpoints referencing missing behaviour configurations. Validation belongs to a later phase.
+
 ## Scenario 1: Simple service with endpoint
 
 Stage 1 typed model target: yes.
@@ -702,6 +744,8 @@ No diagnostics expected in Stage 3.
 
 ## Scenario 6: Service behaviour
 
+Stage 4 typed model target: yes, implemented.
+
 ### Input XML
 
 ```xml
@@ -724,8 +768,13 @@ No diagnostics expected in Stage 3.
 ```text
 config.Behaviors.ServiceBehaviors.Count == 1
 
+behavior.BehaviorType == "serviceBehavior"
 behavior.Name == "CustomerServiceBehavior"
+behavior.Attributes["name"] == "CustomerServiceBehavior"
 behavior.RawElement is not null
+behavior.RawElement.Name == "behavior"
+behavior.RawElement.Children contains <serviceMetadata>
+behavior.RawElement.Children contains <serviceDebug>
 ```
 
 The first typed model does not need to strongly model every behaviour child element, but those child elements must remain available through raw XML.
@@ -743,6 +792,8 @@ No diagnostics expected.
 ```
 
 ## Scenario 7: Endpoint behaviour
+
+Stage 4 typed model target: yes, implemented.
 
 ### Input XML
 
@@ -765,8 +816,12 @@ No diagnostics expected.
 ```text
 config.Behaviors.EndpointBehaviors.Count == 1
 
+behavior.BehaviorType == "endpointBehavior"
 behavior.Name == "CustomerEndpointBehavior"
+behavior.Attributes["name"] == "CustomerEndpointBehavior"
 behavior.RawElement is not null
+behavior.RawElement.Name == "behavior"
+behavior.RawElement.Children contains <clientCredentials>
 ```
 
 ### Raw XML preservation
@@ -779,6 +834,136 @@ Raw XML for endpoint behaviour child elements is preserved.
 
 ```text
 No diagnostics expected.
+```
+
+## Scenario 7a: Unnamed service behaviour is preserved
+
+Stage 4 typed model target: yes, implemented.
+
+### Input XML
+
+```xml
+<configuration>
+  <system.serviceModel>
+    <behaviors>
+      <serviceBehaviors>
+        <behavior>
+          <serviceMetadata httpGetEnabled="true" />
+        </behavior>
+      </serviceBehaviors>
+    </behaviors>
+  </system.serviceModel>
+</configuration>
+```
+
+### Expected typed model
+
+```text
+config.Behaviors.ServiceBehaviors.Count == 1
+
+behavior.BehaviorType == "serviceBehavior"
+behavior.Name == null
+behavior.RawElement is not null
+```
+
+### Raw XML preservation
+
+```text
+The unnamed <behavior> element and its <serviceMetadata> child are preserved.
+```
+
+### Expected diagnostics
+
+```text
+No diagnostics expected in Stage 4.
+```
+
+## Scenario 7b: Unknown behaviour group is raw-only
+
+Stage 4 typed model target: yes for raw preservation, no for typed modelling; implemented.
+
+### Input XML
+
+```xml
+<configuration>
+  <system.serviceModel>
+    <behaviors>
+      <unknownLegacyBehaviors>
+        <behavior name="LegacyBehavior" />
+      </unknownLegacyBehaviors>
+    </behaviors>
+  </system.serviceModel>
+</configuration>
+```
+
+### Expected typed model
+
+```text
+config.Behaviors.ServiceBehaviors.Count == 0
+config.Behaviors.EndpointBehaviors.Count == 0
+```
+
+### Raw XML preservation
+
+```text
+The <unknownLegacyBehaviors> element is preserved under config.RawSystemServiceModel.
+The nested <behavior name="LegacyBehavior" /> element is preserved in raw XML.
+```
+
+### Expected diagnostics
+
+```text
+No diagnostics expected in Stage 4.
+```
+
+## Scenario 7c: British spelling behaviour aliases
+
+Stage 4 typed model target: yes, implemented.
+
+### Input XML
+
+```xml
+<configuration>
+  <system.serviceModel>
+    <behaviours>
+      <serviceBehaviours>
+        <behaviour name="BritishServiceBehaviour">
+          <serviceMetadata httpGetEnabled="true" />
+        </behaviour>
+      </serviceBehaviours>
+      <endpointBehaviours>
+        <behaviour name="BritishEndpointBehaviour">
+          <clientCredentials />
+        </behaviour>
+      </endpointBehaviours>
+    </behaviours>
+  </system.serviceModel>
+</configuration>
+```
+
+### Expected typed model
+
+```text
+config.Behaviors.ServiceBehaviors.Count == 1
+config.Behaviors.EndpointBehaviors.Count == 1
+
+service behavior BehaviorType == "serviceBehavior"
+service behavior Name == "BritishServiceBehaviour"
+endpoint behavior BehaviorType == "endpointBehavior"
+endpoint behavior Name == "BritishEndpointBehaviour"
+```
+
+### Raw XML preservation
+
+```text
+Both RawElement values are preserved.
+Raw element names may be "behaviour" because the source XML used British spelling.
+```
+
+### Expected diagnostics
+
+```text
+No diagnostics expected in Stage 4.
 ```
 
 ## Scenario 8: Client endpoint

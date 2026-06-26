@@ -9,8 +9,9 @@ namespace LegacyWcf.Configuration;
 /// <remarks>
 /// The raw <c>&lt;system.serviceModel&gt;</c> XML tree remains the source of truth.
 /// Phase 2 Stage 1 adds typed services and service endpoints, Phase 2 Stage 2 adds
-/// typed service host and host base address support, and Phase 2 Stage 3 adds initial
-/// typed binding support on top of that preserved raw tree.
+/// typed service host and host base address support, Phase 2 Stage 3 adds initial
+/// typed binding support, and Phase 2 Stage 4 adds initial typed behaviour support
+/// on top of that preserved raw tree.
 /// </remarks>
 public sealed class LegacyWcfConfiguration
 {
@@ -30,25 +31,30 @@ public sealed class LegacyWcfConfiguration
     /// <param name="bindings">
     /// Optional typed WCF bindings. When <see langword="null"/>, an empty bindings container is used.
     /// </param>
+    /// <param name="behaviors">
+    /// Optional typed WCF behaviours. When <see langword="null"/>, an empty behaviours container is used.
+    /// </param>
     public LegacyWcfConfiguration(
         LegacyWcfElement rawSystemServiceModel,
         IReadOnlyList<LegacyWcfDiagnostic>? diagnostics = null,
         LegacyWcfServices? services = null,
-        LegacyWcfBindings? bindings = null)
+        LegacyWcfBindings? bindings = null,
+        LegacyWcfBehaviors? behaviors = null)
     {
         RawSystemServiceModel = rawSystemServiceModel ?? throw new ArgumentNullException(nameof(rawSystemServiceModel));
         Diagnostics = diagnostics ?? Array.Empty<LegacyWcfDiagnostic>();
         Services = services ?? LegacyWcfServices.Empty;
         Bindings = bindings ?? LegacyWcfBindings.Empty;
+        Behaviors = behaviors ?? LegacyWcfBehaviors.Empty;
     }
 
     /// <summary>
     /// Gets the typed WCF services declared under <c>&lt;services&gt;</c>.
     /// </summary>
     /// <remarks>
-    /// The collection is empty when no <c>&lt;services&gt;</c> element exists. Stage 3 includes
-    /// service host/base address models and initial typed binding enumeration, but does not
-    /// include lookup helpers, behaviours, or client endpoints.
+    /// The collection is empty when no <c>&lt;services&gt;</c> element exists. Stage 4 includes
+    /// service host/base address models, initial typed binding enumeration, and initial typed
+    /// behaviour enumeration, but does not include lookup helpers or client endpoints.
     /// </remarks>
     public LegacyWcfServices Services { get; }
 
@@ -61,6 +67,17 @@ public sealed class LegacyWcfConfiguration
     /// validation are planned for later phases.
     /// </remarks>
     public LegacyWcfBindings Bindings { get; }
+
+    /// <summary>
+    /// Gets the typed WCF behaviours declared under <c>&lt;behaviors&gt;</c> or
+    /// <c>&lt;behaviours&gt;</c>.
+    /// </summary>
+    /// <remarks>
+    /// The container is empty when no behaviour elements exist. Stage 4 exposes service
+    /// and endpoint behaviour collections for enumeration only; lookup helpers and
+    /// cross-reference validation are planned for later phases.
+    /// </remarks>
+    public LegacyWcfBehaviors Behaviors { get; }
 
     /// <summary>
     /// Gets the preserved raw <c>&lt;system.serviceModel&gt;</c> element.
@@ -82,3 +99,5 @@ public sealed class LegacyWcfConfiguration
     /// </remarks>
     public IReadOnlyList<LegacyWcfDiagnostic> Diagnostics { get; }
 }
+
+

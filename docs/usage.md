@@ -2,7 +2,7 @@
 
 This document shows how LegacyWcf.Configuration is intended to be used by application developers.
 
-Phase 1 raw-reader APIs are implemented. Phase 2 Stage 1 typed service and endpoint APIs are implemented. Phase 2 Stage 2 typed service host, host base address, and host timeout APIs are implemented. Phase 2 Stage 3 initial typed binding APIs are implemented. Behaviour, client endpoint, validation, and lookup examples later in this document describe the intended developer experience for later phases.
+Phase 1 raw-reader APIs are implemented. Phase 2 Stage 1 typed service and endpoint APIs are implemented. Phase 2 Stage 2 typed service host, host base address, and host timeout APIs are implemented. Phase 2 Stage 3 initial typed binding APIs are implemented. Phase 2 Stage 4 initial typed behaviour APIs are implemented. Client endpoint, validation, and lookup examples later in this document describe the intended developer experience for later phases.
 
 ## Install
 
@@ -105,11 +105,11 @@ Future diagnostics may include:
 - references to missing binding configurations
 - references to missing behaviour configurations
 
-## Phase 2 Stage 2 typed service, endpoint, and host usage
+## Phase 2 Stage 4 typed service, endpoint, host, binding, and behaviour usage
 
-The following APIs are implemented. The current typed model includes services, service endpoints, service hosts, host base addresses, host timeouts, initial typed binding collections, typed enumerable collections, and raw XML fallback from those typed objects.
+The following APIs are implemented. The current typed model includes services, service endpoints, service hosts, host base addresses, host timeouts, initial typed binding collections, initial typed behaviour collections, typed enumerable collections, and raw XML fallback from those typed objects.
 
-Stage 3 does not include `Find(...)`, `GetRequired(...)`, endpoint lookup helpers, binding lookup helpers, behaviours, client endpoints, validation diagnostics, CoreWCF mapping, code generation, or CLI tooling. Targeted binding lookup remains a later retrieval API concern.
+Stage 4 does not include `Find(...)`, `GetRequired(...)`, endpoint lookup helpers, binding lookup helpers, behaviour lookup helpers, client endpoints, validation diagnostics, CoreWCF mapping, code generation, or CLI tooling. Targeted lookup remains a later retrieval API concern.
 
 ## Enumerate services
 
@@ -312,19 +312,46 @@ var binding = config.Bindings.GetRequired(
     endpoint.BindingConfiguration);
 ```
 
-## Read behaviours
+## Phase 2 Stage 4 usage: enumerate typed behaviours
 
-Services and endpoints can reference named behaviours.
+Services and endpoints can reference named behaviours through `behaviorConfiguration`. Phase 2 Stage 4 adds typed behaviour enumeration without adding lookup helpers yet.
 
-```csharp
-var serviceBehavior = config.Behaviors.ServiceBehaviors.Find(
-    service.BehaviorConfiguration);
+The implemented Stage 4 API exposes:
 
-var endpointBehavior = config.Behaviors.EndpointBehaviors.Find(
-    endpoint.BehaviorConfiguration);
+```text
+config.Behaviors.ServiceBehaviors
+config.Behaviors.EndpointBehaviors
 ```
 
-Behaviour elements may contain many child elements. The typed model should expose common identifiers while retaining raw XML fallback.
+Each collection should support `Count`, indexed access, `foreach`, and LINQ through `IEnumerable`/`IReadOnlyList`.
+
+```csharp
+foreach (var behavior in config.Behaviors.ServiceBehaviors)
+{
+    Console.WriteLine($"Behaviour type: {behavior.BehaviorType}");
+    Console.WriteLine($"Name: {behavior.Name}");
+
+    foreach (var child in behavior.RawElement.Children)
+    {
+        Console.WriteLine($"  Raw child: {child.Name}");
+    }
+}
+```
+
+```csharp
+foreach (var behavior in config.Behaviors.EndpointBehaviors)
+{
+    Console.WriteLine($"Behaviour type: {behavior.BehaviorType}");
+    Console.WriteLine($"Name: {behavior.Name}");
+    Console.WriteLine(behavior.RawElement.RawXml);
+}
+```
+
+The Stage 4 behaviour model preserves all attributes from each `<behavior>` or `<behaviour>` element through `behavior.Attributes`, including `name`, and preserves child elements such as `<serviceMetadata>`, `<serviceDebug>`, and `<clientCredentials>` through `behavior.RawElement.Children`.
+
+If `<behaviors>` or `<behaviours>` is missing, `config.Behaviors` should still be non-null and service and endpoint behaviour collections should be empty. If a behaviour is missing a `name` attribute, it should still be included in the typed collection with `Name == null`.
+
+Lookup helpers such as `Find(...)` and `GetRequired(...)` are planned for a later retrieval API phase, not Stage 4.
 
 ## Read client endpoints
 
