@@ -17,6 +17,7 @@ internal static class LegacyWcfRawElementBuilder
         "host",
         "baseAddresses",
         "add",
+        "timeouts",
         "bindings",
         "binding",
         "basicHttpBinding",

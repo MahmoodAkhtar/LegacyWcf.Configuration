@@ -82,7 +82,7 @@ This keeps the package usable from .NET Framework 4.8 applications through `nets
 
 ## Intended usage
 
-The currently implemented Phase 1 API reads a config file and exposes the raw `<system.serviceModel>` XML tree:
+The currently implemented API reads a config file, preserves the raw `<system.serviceModel>` XML tree, and exposes typed services, service endpoints, service hosts, host base addresses, and host timeouts:
 
 ```csharp
 using LegacyWcf.Configuration;
@@ -99,11 +99,30 @@ if (!result.Success)
     return;
 }
 
-var raw = result.Configuration!.RawSystemServiceModel;
+var config = result.Configuration!;
+var raw = config.RawSystemServiceModel;
 
 Console.WriteLine(raw.Name);
 Console.WriteLine(raw.Path);
 Console.WriteLine(raw.RawXml);
+
+foreach (var service in config.Services)
+{
+    Console.WriteLine($"Service: {service.Name}");
+
+    foreach (var endpoint in service.Endpoints)
+    {
+        Console.WriteLine($"  Contract: {endpoint.Contract}");
+        Console.WriteLine($"  Binding: {endpoint.Binding}");
+        Console.WriteLine($"  Binding configuration: {endpoint.BindingConfiguration}");
+        Console.WriteLine($"  Address: {endpoint.Address}");
+    }
+
+    foreach (var baseAddress in service.Host?.BaseAddresses ?? Array.Empty<string>())
+    {
+        Console.WriteLine($"  Base address: {baseAddress}");
+    }
+}
 ```
 
 Future typed model APIs are intended to make common WCF concepts directly queryable:
@@ -140,42 +159,60 @@ var baseAddresses = service.Host?.BaseAddresses ?? [];
 ```
 
 
-## Current implementation slice: Phase 1 raw reader
+## Current implementation slice: Phase 2 Stage 2 typed services, endpoints, and hosts
 
 **Phase 1: Full-fidelity reader is implemented.**
 
-Phase 1 is deliberately limited to reading and preserving the raw `<system.serviceModel>` XML tree. It does not add typed WCF services, endpoints, bindings, behaviours, lookup APIs, CoreWCF mapping, code generation, or CLI tooling yet.
+**Phase 2 Stage 1: Typed services and service endpoints are implemented.**
 
-The implemented API is:
+**Phase 2 Stage 2: Typed service hosts, host base addresses, and host timeouts are implemented.**
+
+The reader now preserves the full raw `<system.serviceModel>` XML tree and builds additive typed models for the currently supported WCF concepts. Raw XML remains the source of truth, and every typed service, endpoint, host, and host timeout object keeps access to its source `LegacyWcfElement`.
+
+The implemented API supports:
 
 ```csharp
 var result = LegacyWcfConfigurationReader.Read("web.config");
 
 if (result.Success)
 {
-    var raw = result.Configuration!.RawSystemServiceModel;
+    var config = result.Configuration!;
+
+    foreach (var service in config.Services)
+    {
+        Console.WriteLine(service.Name);
+
+        foreach (var endpoint in service.Endpoints)
+        {
+            Console.WriteLine(endpoint.Contract);
+            Console.WriteLine(endpoint.Binding);
+            Console.WriteLine(endpoint.BindingConfiguration);
+            Console.WriteLine(endpoint.Address);
+        }
+
+        foreach (var baseAddress in service.Host?.BaseAddresses ?? Array.Empty<string>())
+        {
+            Console.WriteLine(baseAddress);
+        }
+    }
 }
 ```
 
-Phase 1 provides:
+The current implementation provides:
 
 - a simple `LegacyWcfConfigurationReader.Read(string filePath)` entry point
 - a read result with `Success`, `Configuration`, and `Diagnostics`
-- a minimal `LegacyWcfConfiguration` containing `RawSystemServiceModel`
 - a recursive raw XML model that preserves element names, paths, attributes, children, values, raw XML, source file paths, and line numbers where practical
 - diagnostics for missing files, unreadable files, malformed XML, missing `<configuration>`, and missing `<system.serviceModel>`
+- typed enumerable services through `config.Services`
+- typed enumerable service endpoints through `service.Endpoints`
+- typed service host access through `service.Host`
+- typed host base addresses through `service.Host.BaseAddresses`
+- typed host timeouts through `service.Host.Timeouts`
 - preservation of unknown custom elements and attributes
 - no CoreWCF dependency in the core package
 
-This establishes the most important trust boundary: legacy WCF XML is preserved before it is interpreted.
-
-## Planned next slice: Phase 2 Stage 1 typed services and endpoints
-
-The next planned implementation slice is **Phase 2 Stage 1**. It should add typed models for WCF services and service endpoints on top of the preserved raw XML tree.
-
-Stage 1 should add typed enumerable collections for `config.Services` and `service.Endpoints`, with each typed object retaining access to its source `LegacyWcfElement`.
-
-Stage 1 should not add host models, base addresses, bindings, behaviours, client endpoints, lookup APIs, validation diagnostics, CoreWCF mapping, code generation, or CLI tooling. Those remain later stages or phases.
+The next implementation slice is **Phase 2 Stage 3: initial typed binding support**. Stage 3 should add typed binding models and binding collections for common binding groups such as `basicHttpBinding`, `wsHttpBinding`, `netTcpBinding`, and `customBinding`. It should not add behaviours, client endpoints, lookup APIs, validation diagnostics, CoreWCF mapping, code generation, or CLI tooling.
 
 ## Relationship to CoreWCF
 
@@ -222,8 +259,15 @@ LegacyWcf.Configuration/
 │       ├── LegacyWcfDiagnostic.cs
 │       ├── LegacyWcfDiagnosticSeverity.cs
 │       ├── LegacyWcfElement.cs
+│       ├── LegacyWcfHost.cs
+│       ├── LegacyWcfHostTimeouts.cs
+│       ├── LegacyWcfService.cs
+│       ├── LegacyWcfServiceEndpoint.cs
+│       ├── LegacyWcfServiceEndpoints.cs
+│       ├── LegacyWcfServices.cs
 │       └── Internal/
-│           └── LegacyWcfRawElementBuilder.cs
+│           ├── LegacyWcfRawElementBuilder.cs
+│           └── LegacyWcfTypedModelBuilder.cs
 │
 ├── tests/
 │   └── LegacyWcf.Configuration.Tests/
@@ -245,13 +289,18 @@ Public API files currently live directly under `src/LegacyWcf.Configuration/`. I
 
 Phase 1 raw reader is implemented and covered by tests.
 
+Phase 2 Stage 1 typed services and service endpoints are implemented and covered by tests.
+
+Phase 2 Stage 2 typed service hosts, host base addresses, and host timeouts are implemented and covered by tests.
+
 Current test status:
 
-- total tests: 6
-- passed: 6
+- total tests: 18
+- passed: 18
 - failed: 0
+- skipped: 0
 
-The next implementation step is Phase 2 Stage 1: typed WCF service and service endpoint models on top of the preserved raw XML tree. The project should continue to prioritise:
+The next implementation step is Phase 2 Stage 3: initial typed binding support. The project should continue to prioritise:
 
 - full-fidelity XML preservation
 - typed access to common WCF values

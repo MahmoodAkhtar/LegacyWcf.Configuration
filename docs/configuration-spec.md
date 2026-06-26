@@ -114,7 +114,33 @@ If a `<service>` is missing a `name` attribute, the typed service should be pres
 
 If an `<endpoint>` is missing optional attributes, the corresponding typed properties should be `null`.
 
-Unknown service child elements and `<host>` should be preserved through `service.RawElement`, but Stage 1 should not expose typed host, binding, behaviour, client endpoint, or lookup APIs.
+Unknown service child elements should be preserved through `service.RawElement`. Stage 1 did not expose typed host, binding, behaviour, client endpoint, or lookup APIs.
+
+## Phase 2 Stage 2 typed host model contract
+
+Phase 2 Stage 2 adds typed service host support on top of the Stage 1 service model. It is additive and must not weaken raw XML preservation.
+
+Implemented Stage 2 behaviour includes:
+
+- `LegacyWcfService.Host`
+- `LegacyWcfHost.BaseAddresses`
+- `LegacyWcfHost.Timeouts`
+- `LegacyWcfHost.RawElement`
+- `LegacyWcfHostTimeouts.OpenTimeout`
+- `LegacyWcfHostTimeouts.CloseTimeout`
+- `LegacyWcfHostTimeouts.RawElement`
+
+If `<host>` is missing, `service.Host` should be `null`.
+
+If `<host>` exists but `<baseAddresses>` is missing, `service.Host` should be populated and `service.Host.BaseAddresses.Count` should be `0`.
+
+If `<baseAddresses>` contains an `<add>` element without a `baseAddress` attribute, that entry should be ignored by the typed `BaseAddresses` collection while the raw `<add>` element remains preserved through `service.Host.RawElement`.
+
+Base address values should be preserved as strings. Stage 2 should not validate URI format.
+
+Unknown host child elements should be preserved through `service.Host.RawElement.Children` and should not cause a read failure.
+
+Stage 2 does not add typed bindings, behaviours, client endpoints, serviceHostingEnvironment, lookup APIs, validation diagnostics, CoreWCF mapping, code generation, or CLI tooling.
 
 ## Scenario 1: Simple service with endpoint
 
@@ -170,7 +196,7 @@ No diagnostics expected.
 
 ## Scenario 2: Service with host base addresses
 
-Stage 1 typed model target: partial only. Stage 1 should preserve `<host>` in `service.RawElement`, but typed host and base address models remain later work.
+Stage 2 typed model target: yes.
 
 ### Input XML
 
@@ -218,6 +244,51 @@ service.RawElement is not null
 service.Host.RawElement is not null
 endpoint.RawElement is not null
 Raw XML for <host>, <baseAddresses>, <add>, and <endpoint> is preserved
+```
+
+### Expected diagnostics
+
+```text
+No diagnostics expected.
+```
+
+## Scenario 2a: Service with host timeouts
+
+Stage 2 typed model target: yes.
+
+### Input XML
+
+```xml
+<configuration>
+  <system.serviceModel>
+    <services>
+      <service name="MyCompany.Services.CustomerService">
+        <host>
+          <timeouts openTimeout="00:01:00" closeTimeout="00:02:00" />
+        </host>
+      </service>
+    </services>
+  </system.serviceModel>
+</configuration>
+```
+
+### Expected typed model
+
+```text
+config.Services.Count == 1
+
+service.Host is not null
+service.Host.Timeouts is not null
+service.Host.Timeouts.OpenTimeout == "00:01:00"
+service.Host.Timeouts.CloseTimeout == "00:02:00"
+```
+
+### Raw XML preservation
+
+```text
+service.Host.RawElement is not null
+service.Host.Timeouts.RawElement is not null
+Raw XML for <host> and <timeouts> is preserved
 ```
 
 ### Expected diagnostics

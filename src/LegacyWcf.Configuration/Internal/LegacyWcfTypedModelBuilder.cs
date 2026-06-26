@@ -32,11 +32,56 @@ internal static class LegacyWcfTypedModelBuilder
             .Select(BuildEndpoint)
             .ToList();
 
+        var host = BuildHost(serviceElement);
+
         return new LegacyWcfService(
             name: GetAttributeOrDefault(serviceElement, "name", string.Empty),
             behaviorConfiguration: GetAttributeOrNull(serviceElement, "behaviorConfiguration"),
             endpoints: endpoints.Count == 0 ? LegacyWcfServiceEndpoints.Empty : new LegacyWcfServiceEndpoints(endpoints),
-            rawElement: serviceElement);
+            rawElement: serviceElement,
+            host: host);
+    }
+
+    private static LegacyWcfHost? BuildHost(LegacyWcfElement serviceElement)
+    {
+        var hostElement = serviceElement.Children.FirstOrDefault(child => IsNamed(child, "host"));
+
+        if (hostElement is null)
+        {
+            return null;
+        }
+
+        var baseAddressesElement = hostElement.Children.FirstOrDefault(child => IsNamed(child, "baseAddresses"));
+        var baseAddresses = baseAddressesElement is null
+            ? new List<string>()
+            : baseAddressesElement.Children
+                .Where(child => IsNamed(child, "add"))
+                .Select(child => GetAttributeOrNull(child, "baseAddress"))
+                .Where(baseAddress => baseAddress is not null)
+                .Select(baseAddress => baseAddress!)
+                .ToList();
+
+        var timeouts = BuildHostTimeouts(hostElement);
+
+        return new LegacyWcfHost(
+            baseAddresses: baseAddresses,
+            timeouts: timeouts,
+            rawElement: hostElement);
+    }
+
+    private static LegacyWcfHostTimeouts? BuildHostTimeouts(LegacyWcfElement hostElement)
+    {
+        var timeoutsElement = hostElement.Children.FirstOrDefault(child => IsNamed(child, "timeouts"));
+
+        if (timeoutsElement is null)
+        {
+            return null;
+        }
+
+        return new LegacyWcfHostTimeouts(
+            closeTimeout: GetAttributeOrNull(timeoutsElement, "closeTimeout"),
+            openTimeout: GetAttributeOrNull(timeoutsElement, "openTimeout"),
+            rawElement: timeoutsElement);
     }
 
     private static LegacyWcfServiceEndpoint BuildEndpoint(LegacyWcfElement endpointElement)

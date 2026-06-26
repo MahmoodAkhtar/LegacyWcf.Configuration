@@ -8,7 +8,8 @@ namespace LegacyWcf.Configuration;
 /// </summary>
 /// <remarks>
 /// The raw <c>&lt;system.serviceModel&gt;</c> XML tree remains the source of truth.
-/// Phase 2 Stage 1 adds typed services and service endpoints on top of that preserved raw tree.
+/// Phase 2 Stage 1 adds typed services and service endpoints, and Phase 2 Stage 2 adds
+/// typed service host and host base address support on top of that preserved raw tree.
 /// </remarks>
 public sealed class LegacyWcfConfiguration
 {
@@ -39,8 +40,9 @@ public sealed class LegacyWcfConfiguration
     /// Gets the typed WCF services declared under <c>&lt;services&gt;</c>.
     /// </summary>
     /// <remarks>
-    /// The collection is empty when no <c>&lt;services&gt;</c> element exists. Stage 1 does not
-    /// include lookup helpers, host models, bindings, behaviours, or client endpoints.
+    /// The collection is empty when no <c>&lt;services&gt;</c> element exists. Stage 2 includes
+    /// service host/base address models, but does not include lookup helpers, bindings,
+    /// behaviours, or client endpoints.
     /// </remarks>
     public LegacyWcfServices Services { get; }
 

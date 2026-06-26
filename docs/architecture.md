@@ -126,8 +126,15 @@ src/
     ├── LegacyWcfDiagnostic.cs
     ├── LegacyWcfDiagnosticSeverity.cs
     ├── LegacyWcfElement.cs
+    ├── LegacyWcfHost.cs
+    ├── LegacyWcfHostTimeouts.cs
+    ├── LegacyWcfService.cs
+    ├── LegacyWcfServiceEndpoint.cs
+    ├── LegacyWcfServiceEndpoints.cs
+    ├── LegacyWcfServices.cs
     └── Internal/
-        └── LegacyWcfRawElementBuilder.cs
+        ├── LegacyWcfRawElementBuilder.cs
+        └── LegacyWcfTypedModelBuilder.cs
 ```
 
 The current convention is:
@@ -344,7 +351,7 @@ LegacyWcfConfiguration.Services
 
 `LegacyWcfServices` and `LegacyWcfServiceEndpoints` should be typed enumerable collections with `Count`, indexer support, `foreach`, and LINQ support through `IEnumerable`/`IReadOnlyList`.
 
-Stage 1 should not add host models, host base addresses, bindings, behaviours, client endpoints, lookup helpers, validation diagnostics, CoreWCF mapping, code generation, or CLI tooling.
+Stage 1 did not add host models, host base addresses, bindings, behaviours, client endpoints, lookup helpers, validation diagnostics, CoreWCF mapping, code generation, or CLI tooling.
 
 Typed parsing should be built from `LegacyWcfElement` rather than directly from `XDocument` or `XElement`. The recommended internal helper is:
 
@@ -376,6 +383,45 @@ public sealed class LegacyWcfService
     public required LegacyWcfElement RawElement { get; init; }
 }
 ```
+
+
+### Phase 2 Stage 2 typed model boundary
+
+The second typed-model slice is implemented and adds service host support on top of the Stage 1 service model.
+
+Stage 2 public API includes:
+
+```text
+LegacyWcfHost
+LegacyWcfHostTimeouts
+LegacyWcfService.Host
+```
+
+`LegacyWcfHost` exposes typed host base addresses, optional typed host timeout settings, and the raw `<host>` element:
+
+```csharp
+public sealed class LegacyWcfHost
+{
+    public IReadOnlyList<string> BaseAddresses { get; }
+    public LegacyWcfHostTimeouts? Timeouts { get; }
+    public LegacyWcfElement RawElement { get; }
+}
+```
+
+`LegacyWcfHostTimeouts` keeps timeout values as strings and exposes the raw `<timeouts>` element:
+
+```csharp
+public sealed class LegacyWcfHostTimeouts
+{
+    public string? CloseTimeout { get; }
+    public string? OpenTimeout { get; }
+    public LegacyWcfElement RawElement { get; }
+}
+```
+
+Stage 2 parsing is built from `LegacyWcfElement` in `LegacyWcfTypedModelBuilder`. It reads direct service `<host>` children, reads `<baseAddresses>/<add baseAddress="..." />` values in source order, ignores missing `baseAddress` attributes in the typed list while preserving them in raw XML, and preserves unknown host children.
+
+Stage 2 does not add bindings, behaviours, client endpoints, lookup helpers, validation diagnostics, CoreWCF mapping, code generation, or CLI tooling.
 
 ## Typed collections
 

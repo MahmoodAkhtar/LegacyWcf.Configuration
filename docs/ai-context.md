@@ -333,20 +333,40 @@ High-value typed model areas:
 
 **Phase 1: Full-fidelity reader is implemented.**
 
-The current code reads and preserves the raw `<system.serviceModel>` XML tree. It does not implement typed services, typed endpoints, typed bindings, typed behaviours, lookup APIs, CoreWCF mapping, code generation, or CLI tooling.
+The current code reads and preserves the raw `<system.serviceModel>` XML tree.
 
-Implemented first useful output:
+**Phase 2 Stage 1: Typed services and service endpoints are implemented.**
 
-```csharp
-var result = LegacyWcfConfigurationReader.Read("web.config");
+The current code exposes typed WCF services and service endpoints through:
 
-if (result.Success)
-{
-    var raw = result.Configuration!.RawSystemServiceModel;
-}
+```text
+LegacyWcfConfiguration.Services
+LegacyWcfService
+LegacyWcfServiceEndpoint
+LegacyWcfServices
+LegacyWcfServiceEndpoints
 ```
 
-Current Phase 1 files:
+**Phase 2 Stage 2: Typed service hosts, host base addresses, and host timeouts are implemented.**
+
+The current code exposes typed service host configuration through:
+
+```text
+LegacyWcfService.Host
+LegacyWcfHost
+LegacyWcfHostTimeouts
+```
+
+Implemented typed host behaviour:
+
+- `service.Host` is `null` when a service has no direct `<host>` child.
+- `service.Host.BaseAddresses` preserves `<baseAddresses>/<add baseAddress="..." />` values in source order.
+- `<add>` entries without a `baseAddress` attribute are ignored by the typed `BaseAddresses` list but preserved in raw XML.
+- `service.Host.Timeouts` reads optional `<timeouts openTimeout="..." closeTimeout="..." />` values as strings.
+- unknown host child elements remain available through `service.Host.RawElement.Children`.
+- every typed service, endpoint, host, and timeout object retains access to its source `LegacyWcfElement`.
+
+Current source files include:
 
 ```text
 src/LegacyWcf.Configuration/
@@ -356,13 +376,18 @@ src/LegacyWcf.Configuration/
 ├── LegacyWcfElement.cs
 ├── LegacyWcfDiagnostic.cs
 ├── LegacyWcfDiagnosticSeverity.cs
+├── LegacyWcfHost.cs
+├── LegacyWcfHostTimeouts.cs
+├── LegacyWcfService.cs
+├── LegacyWcfServiceEndpoint.cs
+├── LegacyWcfServiceEndpoints.cs
+├── LegacyWcfServices.cs
 └── Internal/
-    └── LegacyWcfRawElementBuilder.cs
+    ├── LegacyWcfRawElementBuilder.cs
+    └── LegacyWcfTypedModelBuilder.cs
 ```
 
-Public API files should remain at the project root for Phase 1. Do not reintroduce public API folders such as `Reading/`, `Raw/`, `Model/`, or `Diagnostics/` unless the project has grown enough that the extra structure clearly improves maintainability.
-
-Current Phase 1 diagnostics cover:
+Current diagnostics cover:
 
 - missing or blank file path
 - file not found
@@ -381,7 +406,7 @@ Current diagnostic codes:
 | `LWC0004` | Root `<configuration>` element was not found. |
 | `LWC0005` | `<system.serviceModel>` was not found under `<configuration>`. |
 
-Current Phase 1 tests cover:
+Current tests cover:
 
 - valid `<system.serviceModel>` raw tree preservation
 - missing file diagnostics
@@ -389,43 +414,47 @@ Current Phase 1 tests cover:
 - missing `<configuration>` diagnostics
 - missing `<system.serviceModel>` diagnostics
 - unknown custom element and attribute preservation
+- typed service parsing
+- typed service endpoint parsing
+- missing `<services>`
+- service missing `name`
+- unknown service child preservation
+- typed host base address parsing
+- multiple typed host base addresses in source order
+- missing host
+- host without base addresses
+- `<add>` without `baseAddress`
+- unknown host child preservation
 
 Current test status:
 
-- total tests: 6
-- passed: 6
+- total tests: 18
+- passed: 18
 - failed: 0
+- skipped: 0
 
-Future AI implementation chats should preserve this boundary: raw XML preservation first, typed parsing later.
+Future AI implementation chats should preserve this boundary: raw XML preservation first, typed parsing only as additive views over the raw tree.
 
 ## Current next implementation slice
 
-The next implementation step is **Phase 2 Stage 1: typed services and service endpoints**.
+The next implementation step is **Phase 2 Stage 3: initial typed bindings**.
 
-Phase 2 should build typed models on top of the preserved raw tree. Every typed object should retain access to its source `LegacyWcfElement`.
+Stage 3 should add typed binding models and binding collections for common binding groups such as:
 
-Stage 1 is limited to:
+- `basicHttpBinding`
+- `wsHttpBinding`
+- `netTcpBinding`
+- `customBinding`
 
-- typed services
-- typed service endpoints
-- typed enumerable service collection
-- typed enumerable endpoint collection
-- every typed object retaining access to its source `LegacyWcfElement`
-- wiring `LegacyWcfConfiguration.Services` into the configuration model
-- tests for typed service and endpoint parsing
+Stage 3 should not implement:
 
-Stage 1 should not implement:
-
-- host model
-- host base addresses
-- host timeouts
-- bindings
 - behaviours
 - client endpoints
 - serviceHostingEnvironment
 - `Find(...)`
 - `GetRequired(...)`
 - endpoint lookup helpers
+- binding lookup helpers
 - validation diagnostics for duplicates or missing references
 - CoreWCF mapping
 - code generation
@@ -465,13 +494,14 @@ The typed model should sit on top of the raw model.
 
 Every typed object should retain a link back to the raw XML element.
 
-For Phase 2 Stage 1, the public model shape should be limited to:
+The implemented Phase 2 Stage 2 public model shape currently includes:
 
 ```text
 LegacyWcfService
 - string Name
 - string? BehaviorConfiguration
 - LegacyWcfServiceEndpoints Endpoints
+- LegacyWcfHost? Host
 - LegacyWcfElement RawElement
 
 LegacyWcfServiceEndpoint
@@ -494,6 +524,16 @@ LegacyWcfServiceEndpoints
 - indexer
 - foreach support
 - LINQ support through IEnumerable/IReadOnlyList
+
+LegacyWcfHost
+- IReadOnlyList<string> BaseAddresses
+- LegacyWcfHostTimeouts? Timeouts
+- LegacyWcfElement RawElement
+
+LegacyWcfHostTimeouts
+- string? CloseTimeout
+- string? OpenTimeout
+- LegacyWcfElement RawElement
 ```
 
 `LegacyWcfConfiguration` should expose `LegacyWcfServices Services`, defaulting to an empty collection when no `<services>` element exists.
@@ -738,8 +778,15 @@ LegacyWcf.Configuration/
 │       ├── LegacyWcfDiagnostic.cs
 │       ├── LegacyWcfDiagnosticSeverity.cs
 │       ├── LegacyWcfElement.cs
+│       ├── LegacyWcfHost.cs
+│       ├── LegacyWcfHostTimeouts.cs
+│       ├── LegacyWcfService.cs
+│       ├── LegacyWcfServiceEndpoint.cs
+│       ├── LegacyWcfServiceEndpoints.cs
+│       ├── LegacyWcfServices.cs
 │       └── Internal/
-│           └── LegacyWcfRawElementBuilder.cs
+│           ├── LegacyWcfRawElementBuilder.cs
+│           └── LegacyWcfTypedModelBuilder.cs
 │
 ├── tests/
 │   └── LegacyWcf.Configuration.Tests/

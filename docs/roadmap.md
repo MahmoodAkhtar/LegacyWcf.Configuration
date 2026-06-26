@@ -71,9 +71,10 @@ Phase 1 does not include typed services, endpoints, bindings, behaviours, lookup
 
 The current Phase 1 test suite has passed:
 
-- total tests: 6
-- passed: 6
+- total tests: 18
+- passed: 18
 - failed: 0
+- skipped: 0
 
 ## Phase 2: Typed WCF model
 
@@ -85,7 +86,7 @@ Add typed models for high-value WCF concepts.
 
 ### Phase 2 Stage 1: typed services and service endpoints
 
-Status: planned next slice.
+Status: implemented.
 
 Stage 1 should add:
 
@@ -97,7 +98,7 @@ Stage 1 should add:
 - typed parsing from the preserved raw `LegacyWcfElement` tree
 - tests for simple services, service endpoints, multiple endpoints, missing `<services>`, and unknown service children
 
-Stage 1 should not add:
+Stage 1 did not add:
 
 - host model
 - host base addresses
@@ -115,13 +116,28 @@ Stage 1 should not add:
 
 Every typed object should retain access to its raw XML element.
 
-### Later Phase 2 typed model areas
+### Phase 2 Stage 2: typed service host and base addresses
 
-Later Phase 2 stages should add:
+Status: implemented.
 
-- host
-- host base addresses
-- host timeouts
+Stage 2 adds:
+
+- `LegacyWcfHost`
+- `LegacyWcfHostTimeouts`
+- `LegacyWcfService.Host`
+- typed host base addresses in source XML order
+- typed host timeout values as strings
+- raw XML fallback for host and timeout elements
+- tests for single base address, multiple base addresses, missing host, empty host, missing `baseAddress`, and unknown host children
+
+Stage 2 does not add bindings, behaviours, client endpoints, lookup helpers, validation diagnostics, CoreWCF mapping, code generation, or CLI tooling.
+
+### Phase 2 Stage 3: initial typed bindings
+
+Status: planned next slice.
+
+Stage 3 should add:
+
 - bindings
 - binding collections
 - basicHttpBinding
@@ -145,6 +161,11 @@ foreach (var service in config.Services)
     {
         Console.WriteLine(endpoint.Contract);
         Console.WriteLine(endpoint.Binding);
+    }
+
+    foreach (var baseAddress in service.Host?.BaseAddresses ?? [])
+    {
+        Console.WriteLine(baseAddress);
     }
 }
 ```

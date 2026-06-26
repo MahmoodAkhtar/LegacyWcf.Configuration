@@ -2,7 +2,7 @@
 
 This document shows how LegacyWcf.Configuration is intended to be used by application developers.
 
-Phase 1 raw-reader APIs are implemented. Typed service, endpoint, binding, behaviour, and lookup examples later in this document describe the intended developer experience for later phases.
+Phase 1 raw-reader APIs are implemented. Phase 2 Stage 1 typed service and endpoint APIs are implemented. Phase 2 Stage 2 typed service host, host base address, and host timeout APIs are implemented. Binding, behaviour, client endpoint, and lookup examples later in this document describe the intended developer experience for later phases.
 
 ## Install
 
@@ -61,7 +61,7 @@ Console.WriteLine(raw.Path);
 Console.WriteLine(raw.RawXml);
 ```
 
-During Phase 1, the main consumer-facing value is raw XML preservation. Typed service, endpoint, binding, behaviour, and lookup examples later in this document describe the intended developer experience for later phases.
+Raw XML preservation remains the trust boundary for the library. Typed service, endpoint, and host models are additive views over the preserved raw tree.
 
 ## Phase 1 diagnostics
 
@@ -105,11 +105,11 @@ Future diagnostics may include:
 - references to missing binding configurations
 - references to missing behaviour configurations
 
-## Phase 2 Stage 1 planned typed service and endpoint usage
+## Phase 2 Stage 2 typed service, endpoint, and host usage
 
-The following examples describe the intended developer experience once Phase 2 Stage 1 is implemented. Stage 1 is limited to typed services, typed service endpoints, typed enumerable collections, and raw XML fallback from those typed objects.
+The following APIs are implemented. The current typed model includes services, service endpoints, service hosts, host base addresses, host timeouts, typed enumerable collections, and raw XML fallback from those typed objects.
 
-Stage 1 does not include `Find(...)`, `GetRequired(...)`, endpoint lookup helpers, host/base address models, bindings, behaviours, client endpoints, validation diagnostics, CoreWCF mapping, code generation, or CLI tooling.
+Stage 2 does not include `Find(...)`, `GetRequired(...)`, endpoint lookup helpers, bindings, behaviours, client endpoints, validation diagnostics, CoreWCF mapping, code generation, or CLI tooling.
 
 ## Enumerate services
 
@@ -121,9 +121,9 @@ foreach (var service in config.Services)
 }
 ```
 
-`config.Services` should be a typed enumerable collection.
+`config.Services` is a typed enumerable collection.
 
-For Phase 2 Stage 1 it should support:
+It supports:
 
 - `Count`
 - indexed access
@@ -197,18 +197,46 @@ The final API should avoid unnecessary complexity, but common WCF identifiers sh
 Legacy WCF service configuration may include `<host>` settings.
 
 ```csharp
-var service = config.Services.GetRequired(
-    "MyCompany.Services.CustomerService");
-
-var baseAddresses = service.Host?.BaseAddresses ?? [];
-
-foreach (var baseAddress in baseAddresses)
+foreach (var service in config.Services)
 {
-    Console.WriteLine(baseAddress);
+    Console.WriteLine($"Service: {service.Name}");
+
+    if (service.Host is null)
+    {
+        continue;
+    }
+
+    foreach (var baseAddress in service.Host.BaseAddresses)
+    {
+        Console.WriteLine($"  Base address: {baseAddress}");
+    }
 }
 ```
 
-Even if later CoreWCF mapping does not directly consume `<host>` configuration, the core package should still read and preserve it.
+The `Host` property is `null` when the source `<service>` element has no direct `<host>` child. If `<host>` exists but `<baseAddresses>` is missing, `service.Host` is populated and `service.Host.BaseAddresses.Count` is `0`.
+
+Entries such as `<add />` without a `baseAddress` attribute are ignored by the typed `BaseAddresses` collection, but remain preserved through `service.Host.RawElement`.
+
+## Read service host timeouts
+
+Host timeout values are exposed as strings so the library preserves the original configuration values without enforcing WCF runtime parsing rules.
+
+```csharp
+foreach (var service in config.Services)
+{
+    var timeouts = service.Host?.Timeouts;
+
+    if (timeouts is null)
+    {
+        continue;
+    }
+
+    Console.WriteLine($"Open timeout: {timeouts.OpenTimeout}");
+    Console.WriteLine($"Close timeout: {timeouts.CloseTimeout}");
+}
+```
+
+Unknown host child elements are not modelled as first-class typed objects in Stage 2, but they remain available through `service.Host.RawElement.Children`.
 
 ## Read bindings
 
@@ -272,10 +300,15 @@ foreach (var endpoint in config.Client?.Endpoints ?? [])
 Every typed object should keep a link to the raw XML element it came from.
 
 ```csharp
-var service = config.Services.GetRequired(
-    "MyCompany.Services.CustomerService");
+foreach (var service in config.Services)
+{
+    Console.WriteLine(service.RawElement.RawXml);
 
-Console.WriteLine(service.RawElement.RawXml);
+    if (service.Host is not null)
+    {
+        Console.WriteLine(service.Host.RawElement.RawXml);
+    }
+}
 ```
 
 This is important because not every WCF element will be strongly modelled in the first version.

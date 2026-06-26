@@ -6,9 +6,9 @@ namespace LegacyWcf.Configuration;
 /// Represents a typed WCF service read from a legacy <c>&lt;service&gt;</c> element.
 /// </summary>
 /// <remarks>
-/// This type models the common service attributes exposed during Phase 2 Stage 1.
-/// Unknown child elements, host configuration, and other unsupported details remain available
-/// through <see cref="RawElement"/>.
+/// This type models the common service attributes exposed during Phase 2 Stage 1 and the
+/// typed host model added in Phase 2 Stage 2. Unsupported details remain available through
+/// <see cref="RawElement"/>.
 /// </remarks>
 public sealed class LegacyWcfService
 {
@@ -22,16 +22,19 @@ public sealed class LegacyWcfService
     /// <param name="behaviorConfiguration">The optional named service behaviour configuration reference.</param>
     /// <param name="endpoints">The typed service endpoints declared directly below the service.</param>
     /// <param name="rawElement">The preserved raw <c>&lt;service&gt;</c> element.</param>
+    /// <param name="host">The optional typed service host configuration.</param>
     public LegacyWcfService(
         string name,
         string? behaviorConfiguration,
         LegacyWcfServiceEndpoints? endpoints,
-        LegacyWcfElement rawElement)
+        LegacyWcfElement rawElement,
+        LegacyWcfHost? host = null)
     {
         Name = name ?? string.Empty;
         BehaviorConfiguration = behaviorConfiguration;
         Endpoints = endpoints ?? LegacyWcfServiceEndpoints.Empty;
         RawElement = rawElement ?? throw new ArgumentNullException(nameof(rawElement));
+        Host = host;
     }
 
     /// <summary>
@@ -48,6 +51,15 @@ public sealed class LegacyWcfService
     /// Gets the typed service endpoints declared directly below this service.
     /// </summary>
     public LegacyWcfServiceEndpoints Endpoints { get; }
+
+    /// <summary>
+    /// Gets the optional typed service host configuration.
+    /// </summary>
+    /// <remarks>
+    /// This value is <see langword="null"/> when the source service has no direct
+    /// <c>&lt;host&gt;</c> child element.
+    /// </remarks>
+    public LegacyWcfHost? Host { get; }
 
     /// <summary>
     /// Gets the preserved raw <c>&lt;service&gt;</c> element that produced this typed service.

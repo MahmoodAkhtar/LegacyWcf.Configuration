@@ -366,6 +366,198 @@ public sealed class LegacyWcfConfigurationReaderTests : IDisposable
         Assert.Null(endpoint.BehaviorConfiguration);
     }
 
+
+    [Fact]
+    public void Read_WhenServiceHasHostBaseAddress_PopulatesTypedHostBaseAddress()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <services>
+      <service name="MyCompany.Services.CustomerService">
+        <host>
+          <baseAddresses>
+            <add baseAddress="http://localhost:8080/CustomerService" />
+          </baseAddresses>
+        </host>
+        <endpoint
+          address=""
+          binding="basicHttpBinding"
+          bindingConfiguration="CustomerBinding"
+          contract="MyCompany.Services.ICustomerService" />
+      </service>
+    </services>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+
+        var service = Assert.Single(result.Configuration!.Services);
+        Assert.NotNull(service.Host);
+        Assert.Single(service.Host!.BaseAddresses);
+        Assert.Equal("http://localhost:8080/CustomerService", service.Host.BaseAddresses[0]);
+        Assert.NotNull(service.Host.RawElement);
+        Assert.Equal("host", service.Host.RawElement.Name);
+
+        var endpoint = Assert.Single(service.Endpoints);
+        Assert.Equal(string.Empty, endpoint.Address);
+        Assert.Equal("basicHttpBinding", endpoint.Binding);
+        Assert.Equal("CustomerBinding", endpoint.BindingConfiguration);
+        Assert.Equal("MyCompany.Services.ICustomerService", endpoint.Contract);
+    }
+
+    [Fact]
+    public void Read_WhenServiceHasMultipleHostBaseAddresses_PopulatesAllBaseAddressesInOrder()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <services>
+      <service name="Microsoft.ServiceModel.Samples.CalculatorService">
+        <host>
+          <baseAddresses>
+            <add baseAddress="http://localhost:8000/ServiceModelSamples/service" />
+            <add baseAddress="net.tcp://localhost:8000/ServiceModelSamples/service2" />
+          </baseAddresses>
+        </host>
+      </service>
+    </services>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+
+        var service = Assert.Single(result.Configuration!.Services);
+        Assert.NotNull(service.Host);
+        Assert.Equal(2, service.Host!.BaseAddresses.Count);
+        Assert.Equal("http://localhost:8000/ServiceModelSamples/service", service.Host.BaseAddresses[0]);
+        Assert.Equal("net.tcp://localhost:8000/ServiceModelSamples/service2", service.Host.BaseAddresses[1]);
+    }
+
+    [Fact]
+    public void Read_WhenServiceHasNoHost_HostIsNull()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <services>
+      <service name="MyCompany.Services.CustomerService">
+        <endpoint contract="MyCompany.Services.ICustomerService" />
+      </service>
+    </services>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+
+        var service = Assert.Single(result.Configuration!.Services);
+        Assert.Null(service.Host);
+        var endpoint = Assert.Single(service.Endpoints);
+        Assert.Equal("MyCompany.Services.ICustomerService", endpoint.Contract);
+    }
+
+    [Fact]
+    public void Read_WhenHostHasNoBaseAddresses_HostExistsWithEmptyBaseAddressCollection()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <services>
+      <service name="MyCompany.Services.CustomerService">
+        <host>
+        </host>
+      </service>
+    </services>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+
+        var service = Assert.Single(result.Configuration!.Services);
+        Assert.NotNull(service.Host);
+        Assert.Equal(0, service.Host!.BaseAddresses.Count);
+        Assert.Equal("host", service.Host.RawElement.Name);
+    }
+
+    [Fact]
+    public void Read_WhenHostBaseAddressAddIsMissingBaseAddress_IgnoresTypedAddressButPreservesRawAdd()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <services>
+      <service name="MyCompany.Services.CustomerService">
+        <host>
+          <baseAddresses>
+            <add />
+          </baseAddresses>
+        </host>
+      </service>
+    </services>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+
+        var service = Assert.Single(result.Configuration!.Services);
+        Assert.NotNull(service.Host);
+        Assert.Equal(0, service.Host!.BaseAddresses.Count);
+
+        var baseAddresses = Assert.Single(service.Host.RawElement.Children, child => child.Name == "baseAddresses");
+        var add = Assert.Single(baseAddresses.Children, child => child.Name == "add");
+        Assert.Empty(add.Attributes);
+    }
+
+    [Fact]
+    public void Read_WhenHostContainsUnknownChild_PreservesUnknownChild()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <services>
+      <service name="MyCompany.Services.CustomerService">
+        <host>
+          <customHostSetting value="abc" />
+        </host>
+      </service>
+    </services>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+        Assert.Empty(result.Diagnostics);
+
+        var service = Assert.Single(result.Configuration!.Services);
+        Assert.NotNull(service.Host);
+        var customHostSetting = Assert.Single(service.Host!.RawElement.Children, child => child.Name == "customHostSetting");
+        Assert.Equal("abc", customHostSetting.Attributes["value"]);
+        Assert.False(customHostSetting.IsKnownElement);
+    }
+
     private string WriteConfig(string xml)
     {
         var filePath = Path.Combine(_tempDirectory, $"{Guid.NewGuid():N}.config");
