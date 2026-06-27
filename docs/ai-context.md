@@ -474,9 +474,60 @@ Current test status:
 
 Future AI implementation chats should preserve this boundary: raw XML preservation first, typed parsing only as additive views over the raw tree.
 
-## Current next implementation slice
+## Current implementation status: Phase 3 retrieval APIs
 
-The next implementation step is Phase 3 retrieval APIs.
+Phase 3 retrieval APIs are implemented.
+
+Phase 3 adds targeted lookup helpers on top of the existing typed model. This is an API convenience phase, not a parser phase and not a validation phase.
+
+Implemented Phase 3 public API additions include:
+
+```text
+LegacyWcfServices
+- LegacyWcfService? Find(string name)
+- LegacyWcfService GetRequired(string name)
+
+LegacyWcfServiceEndpoints
+- LegacyWcfServiceEndpoint? FindByName(string name)
+- LegacyWcfServiceEndpoint GetRequiredByName(string name)
+- LegacyWcfServiceEndpoint? FindByContract(string contract)
+- LegacyWcfServiceEndpoint GetRequiredByContract(string contract)
+
+LegacyWcfBindingCollection
+- LegacyWcfBinding? Find(string? name)
+- LegacyWcfBinding GetRequired(string? name)
+
+LegacyWcfBindings
+- LegacyWcfBinding? Find(string? bindingType, string? name)
+- LegacyWcfBinding GetRequired(string? bindingType, string? name)
+
+LegacyWcfBehaviorCollection
+- LegacyWcfBehavior? Find(string? name)
+- LegacyWcfBehavior GetRequired(string? name)
+
+LegacyWcfClientEndpoints
+- LegacyWcfClientEndpoint? FindByName(string name)
+- LegacyWcfClientEndpoint GetRequiredByName(string name)
+- LegacyWcfClientEndpoint? FindByContract(string contract)
+- LegacyWcfClientEndpoint GetRequiredByContract(string contract)
+```
+
+Phase 3 lookup rules:
+
+- uses case-insensitive matching for WCF names and identifiers
+- `Find...` methods return `null` when no item matches
+- `GetRequired...` methods throw `InvalidOperationException` when no item matches
+- required-lookup exception messages should include useful context, such as service name, endpoint name, endpoint contract, binding type, binding name, behaviour name, and whether the lookup was for service or client configuration
+- service, service endpoint, and client endpoint lookup values that are `null`, blank, or whitespace should not match
+- binding and behaviour name lookups may accept `null` because unnamed bindings and behaviours are preserved
+- top-level binding lookup supports `basicHttpBinding`, `wsHttpBinding`, `netTcpBinding`, and `customBinding`
+- if duplicates exist, return the first matching object and leave duplicate diagnostics to Phase 4 validation
+- lookup helpers do not emit diagnostics
+- lookup helpers do not validate missing binding or behaviour references
+- Phase 3 does not modify `LegacyWcfConfigurationReader` or XML parsing
+- Phase 3 does not add lookup helpers to `LegacyWcfServiceHostingEnvironment`
+
+Phase 3 should not implement validation diagnostics, CoreWCF mapping, code generation, CLI tooling, richer binding-specific models, richer behaviour-specific models, automatic migration, or strict schema enforcement.
 
 
 ## Completed Phase 2 Stage 6 slice

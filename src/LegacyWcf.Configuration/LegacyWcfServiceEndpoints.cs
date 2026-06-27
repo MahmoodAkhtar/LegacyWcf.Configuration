@@ -9,8 +9,7 @@ namespace LegacyWcf.Configuration;
 /// Represents a typed enumerable collection of WCF service endpoints.
 /// </summary>
 /// <remarks>
-/// Phase 2 Stage 1 intentionally provides enumeration, count, indexer, and LINQ support only.
-/// Targeted lookup helpers are planned for a later retrieval API phase.
+/// Phase 3 adds targeted lookup helpers on top of the enumerable service endpoint collection.
 /// </remarks>
 public sealed class LegacyWcfServiceEndpoints : IReadOnlyList<LegacyWcfServiceEndpoint>
 {
@@ -43,6 +42,76 @@ public sealed class LegacyWcfServiceEndpoints : IReadOnlyList<LegacyWcfServiceEn
     public LegacyWcfServiceEndpoint this[int index] => _endpoints[index];
 
     /// <summary>
+    /// Finds the first service endpoint with the specified endpoint name.
+    /// </summary>
+    /// <param name="name">The endpoint name to find.</param>
+    /// <returns>The first matching endpoint, or <see langword="null"/> when no endpoint matches.</returns>
+    public LegacyWcfServiceEndpoint? FindByName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return null;
+        }
+
+        return _endpoints.FirstOrDefault(
+            endpoint => string.Equals(endpoint.Name, name, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Gets the first service endpoint with the specified endpoint name.
+    /// </summary>
+    /// <param name="name">The endpoint name to retrieve.</param>
+    /// <returns>The first matching endpoint.</returns>
+    /// <exception cref="InvalidOperationException">No matching service endpoint exists.</exception>
+    public LegacyWcfServiceEndpoint GetRequiredByName(string name)
+    {
+        var endpoint = FindByName(name);
+
+        if (endpoint is null)
+        {
+            throw new InvalidOperationException(
+                "A WCF service endpoint named '" + FormatLookupValue(name) + "' was not found.");
+        }
+
+        return endpoint;
+    }
+
+    /// <summary>
+    /// Finds the first service endpoint with the specified contract.
+    /// </summary>
+    /// <param name="contract">The endpoint contract to find.</param>
+    /// <returns>The first matching endpoint, or <see langword="null"/> when no endpoint matches.</returns>
+    public LegacyWcfServiceEndpoint? FindByContract(string contract)
+    {
+        if (string.IsNullOrWhiteSpace(contract))
+        {
+            return null;
+        }
+
+        return _endpoints.FirstOrDefault(
+            endpoint => string.Equals(endpoint.Contract, contract, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Gets the first service endpoint with the specified contract.
+    /// </summary>
+    /// <param name="contract">The endpoint contract to retrieve.</param>
+    /// <returns>The first matching endpoint.</returns>
+    /// <exception cref="InvalidOperationException">No matching service endpoint exists.</exception>
+    public LegacyWcfServiceEndpoint GetRequiredByContract(string contract)
+    {
+        var endpoint = FindByContract(contract);
+
+        if (endpoint is null)
+        {
+            throw new InvalidOperationException(
+                "A WCF service endpoint with contract '" + FormatLookupValue(contract) + "' was not found.");
+        }
+
+        return endpoint;
+    }
+
+    /// <summary>
     /// Returns an enumerator that iterates through the endpoint collection.
     /// </summary>
     /// <returns>An endpoint enumerator.</returns>
@@ -58,5 +127,10 @@ public sealed class LegacyWcfServiceEndpoints : IReadOnlyList<LegacyWcfServiceEn
     IEnumerator IEnumerable.GetEnumerator()
     {
         return GetEnumerator();
+    }
+
+    private static string FormatLookupValue(string? value)
+    {
+        return value ?? "<null>";
     }
 }

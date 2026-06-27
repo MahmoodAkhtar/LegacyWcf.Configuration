@@ -279,6 +279,35 @@ Stage 6 parses only the first direct `<serviceHostingEnvironment>` child under `
 
 Stage 6 does not parse boolean values into `bool`. Values remain strings exactly as they appear in XML. Stage 6 does not validate whether `aspNetCompatibilityEnabled` or `multipleSiteBindingsEnabled` values are valid boolean strings. Unknown attributes and unknown child elements are preserved and do not cause a read failure or diagnostic in Stage 6.
 
+## Phase 3 retrieval API contract
+
+Phase 3 is implemented. It adds lookup helpers to existing typed collections only. It does not change the XML scenarios that are parsed, the typed values produced from XML, or raw XML preservation.
+
+Phase 3 adds these lookup behaviours:
+
+| Area | Planned helpers | Match source | Missing `Find` result | Missing `GetRequired` result |
+|---|---|---|---|---|
+| Services | `Find(name)`, `GetRequired(name)` | `LegacyWcfService.Name` | `null` | `InvalidOperationException` |
+| Service endpoints | `FindByName(name)`, `GetRequiredByName(name)` | `LegacyWcfServiceEndpoint.Name` | `null` | `InvalidOperationException` |
+| Service endpoints | `FindByContract(contract)`, `GetRequiredByContract(contract)` | `LegacyWcfServiceEndpoint.Contract` | `null` | `InvalidOperationException` |
+| Binding collection | `Find(name)`, `GetRequired(name)` | `LegacyWcfBinding.Name` | `null` | `InvalidOperationException` |
+| Top-level bindings | `Find(bindingType, name)`, `GetRequired(bindingType, name)` | known binding group plus `LegacyWcfBinding.Name` | `null` | `InvalidOperationException` |
+| Behaviour collection | `Find(name)`, `GetRequired(name)` | `LegacyWcfBehavior.Name` | `null` | `InvalidOperationException` |
+| Client endpoints | `FindByName(name)`, `GetRequiredByName(name)` | `LegacyWcfClientEndpoint.Name` | `null` | `InvalidOperationException` |
+| Client endpoints | `FindByContract(contract)`, `GetRequiredByContract(contract)` | `LegacyWcfClientEndpoint.Contract` | `null` | `InvalidOperationException` |
+
+General Phase 3 lookup behaviour:
+
+- WCF names and identifiers are matched case-insensitively.
+- Service, service endpoint, and client endpoint lookup values that are `null`, blank, or whitespace do not match; `Find...` returns `null`, and `GetRequired...` throws a clear `InvalidOperationException`.
+- Binding and behaviour collection lookup names may be `null` because unnamed bindings and behaviours are preserved in the typed model. A `null` lookup should match an item whose `Name` is `null`. An empty string should remain an empty-string lookup value.
+- Top-level binding lookup supports `basicHttpBinding`, `wsHttpBinding`, `netTcpBinding`, and `customBinding`. Unknown, blank, or `null` binding types should return `null` from `Find(...)` and throw a clear `InvalidOperationException` from `GetRequired(...)`.
+- If multiple items match, Phase 3 returns the first matching item and emit no diagnostics. Duplicate diagnostics belong to Phase 4 validation.
+- Lookup helpers do not validate endpoint binding references, endpoint behaviour references, or service behaviour references. They only retrieve objects already present in the typed model.
+- Required lookup exception messages include the missing lookup value and enough context to identify whether the lookup was for a service, service endpoint, client endpoint, binding, service behaviour, or endpoint behaviour.
+
+Phase 3 does not add new WCF XML element support. It adds consumer-facing retrieval behaviour over the Phase 2 typed model.
+
 ## Scenario 1: Simple service with endpoint
 
 Stage 1 typed model target: yes.

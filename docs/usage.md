@@ -2,7 +2,7 @@
 
 This document shows how LegacyWcf.Configuration is intended to be used by application developers.
 
-Phase 1 raw-reader APIs are implemented. Phase 2 Stage 1 typed service and endpoint APIs are implemented. Phase 2 Stage 2 typed service host, host base address, and host timeout APIs are implemented. Phase 2 Stage 3 initial typed binding APIs are implemented. Phase 2 Stage 4 initial typed behaviour APIs are implemented. Phase 2 Stage 5 typed client endpoint APIs are implemented. Phase 2 Stage 6 typed `serviceHostingEnvironment` APIs are implemented. Validation and lookup examples describe the intended developer experience for later phases.
+Phase 1 raw-reader APIs are implemented. Phase 2 Stage 1 typed service and endpoint APIs are implemented. Phase 2 Stage 2 typed service host, host base address, and host timeout APIs are implemented. Phase 2 Stage 3 initial typed binding APIs are implemented. Phase 2 Stage 4 initial typed behaviour APIs are implemented. Phase 2 Stage 5 typed client endpoint APIs are implemented. Phase 2 Stage 6 typed `serviceHostingEnvironment` APIs are implemented. Phase 3 retrieval APIs are implemented. The lookup examples in this document are now supported by the typed collections.
 
 ## Install
 
@@ -105,11 +105,11 @@ Future diagnostics may include:
 - references to missing binding configurations
 - references to missing behaviour configurations
 
-## Phase 2 Stage 6 typed service, endpoint, host, binding, behaviour, client endpoint, and serviceHostingEnvironment usage
+## Phase 3 typed service, endpoint, host, binding, behaviour, client endpoint, serviceHostingEnvironment, and retrieval API usage
 
-The following APIs are implemented. The current typed model includes services, service endpoints, service hosts, host base addresses, host timeouts, initial typed binding collections, initial typed behaviour collections, typed client endpoints, typed enumerable collections, typed service hosting environment settings, and raw XML fallback from those typed objects.
+The following APIs are implemented. The current typed model includes services, service endpoints, service hosts, host base addresses, host timeouts, initial typed binding collections, initial typed behaviour collections, typed client endpoints, typed enumerable collections, typed service hosting environment settings, retrieval helpers, and raw XML fallback from those typed objects.
 
-Stage 6 does not include `Find(...)`, `GetRequired(...)`, endpoint lookup helpers, binding lookup helpers, behaviour lookup helpers, client endpoint lookup helpers, validation diagnostics, CoreWCF mapping, code generation, or CLI tooling. Targeted lookup remains a later retrieval API concern.
+Phase 3 includes `Find(...)`, `GetRequired(...)`, endpoint lookup helpers, binding lookup helpers, behaviour lookup helpers, and client endpoint lookup helpers. It does not include validation diagnostics, CoreWCF mapping, code generation, or CLI tooling.
 
 ## Enumerate services
 
@@ -130,7 +130,7 @@ It supports:
 - `foreach`
 - LINQ through `IEnumerable`/`IReadOnlyList`
 
-Lookup helpers such as `Find(...)` and `GetRequired(...)` are planned for a later retrieval API phase.
+Lookup helpers such as `Find(...)` and `GetRequired(...)` are implemented in Phase 3.
 
 ## Enumerate service endpoints
 
@@ -151,14 +151,14 @@ foreach (var service in config.Services)
 }
 ```
 
-## Future targeted service lookup
+## Phase 3 targeted service lookup
 
 ```csharp
 var service = config.Services.GetRequired(
     "MyCompany.Services.CustomerService");
 ```
 
-`GetRequired(...)` should return the typed object and fail clearly if the requested item is not present.
+`GetRequired(...)` should return the typed object and fail clearly with `InvalidOperationException` if the requested item is not present.
 
 ```csharp
 var service = config.Services.Find(
@@ -172,16 +172,16 @@ if (service is null)
 
 `Find(...)` should return `null` when the item does not exist.
 
-## Future targeted endpoint lookup
+## Phase 3 targeted service endpoint lookup
 
-A service endpoint collection should support common WCF lookup patterns.
+A service endpoint collection supports common WCF lookup patterns by endpoint `name` and endpoint `contract`. Matching is case-insensitive. Blank lookup values should not match; `Find...` should return `null`, while `GetRequired...` should throw a clear `InvalidOperationException`.
 
 ```csharp
 var endpoint = service.Endpoints.GetRequiredByContract(
     "MyCompany.Services.ICustomerService");
 ```
 
-Possible endpoint lookup helpers:
+Endpoint lookup helpers:
 
 ```csharp
 service.Endpoints.FindByName("CustomerEndpoint");
@@ -190,7 +190,7 @@ service.Endpoints.GetRequiredByName("CustomerEndpoint");
 service.Endpoints.GetRequiredByContract("MyCompany.Services.ICustomerService");
 ```
 
-The final API should avoid unnecessary complexity, but common WCF identifiers should be easy to query.
+If multiple service endpoints match, Phase 3 returns the first matching endpoint and leaves duplicate diagnostics to Phase 4 validation.
 
 ## Read service host base addresses
 
@@ -240,7 +240,7 @@ Unknown host child elements are not modelled as first-class typed objects in Sta
 
 ## Phase 2 Stage 3 usage: enumerate typed bindings
 
-Phase 2 Stage 3 adds initial typed binding support without adding lookup helpers yet.
+Phase 2 Stage 3 added initial typed binding support. Phase 3 adds lookup helpers on those binding collections.
 
 The implemented Stage 3 API exposes:
 
@@ -299,9 +299,9 @@ If `<bindings>` is missing, `config.Bindings` should still be non-null and all k
 
 If a `<binding>` is missing a `name` attribute, the binding should still be included in the typed collection with `Name == null`. Unknown binding groups should remain available through `config.RawSystemServiceModel` but should not be surfaced through Stage 3 typed binding collections.
 
-## Future targeted binding lookup
+## Phase 3 targeted binding lookup
 
-A service endpoint usually references a binding type and optional named binding configuration. Lookup helpers are planned for a later retrieval API phase, not Phase 2 Stage 3.
+A service endpoint usually references a binding type and optional named binding configuration. Phase 3 adds lookup helpers for both binding collections and the top-level binding container.
 
 ```csharp
 var endpoint = service.Endpoints.GetRequiredByContract(
@@ -311,6 +311,15 @@ var binding = config.Bindings.GetRequired(
     endpoint.Binding,
     endpoint.BindingConfiguration);
 ```
+
+Collection-level binding lookup is also supported:
+
+```csharp
+var basicBinding = config.Bindings.BasicHttp.GetRequired("CustomerBinding");
+var unnamedBasicBinding = config.Bindings.BasicHttp.Find(null);
+```
+
+Top-level binding lookup requires a known binding type such as `basicHttpBinding`, `wsHttpBinding`, `netTcpBinding`, or `customBinding`. Unknown or blank binding types should return `null` from `Find(...)` and throw a clear `InvalidOperationException` from `GetRequired(...)`. A `null` binding configuration name should match an unnamed binding in the relevant collection.
 
 ## Phase 2 Stage 4 usage: enumerate typed behaviours
 
@@ -351,7 +360,23 @@ The Stage 4 behaviour model preserves all attributes from each `<behavior>` or `
 
 If `<behaviors>` or `<behaviours>` is missing, `config.Behaviors` should still be non-null and service and endpoint behaviour collections should be empty. If a behaviour is missing a `name` attribute, it should still be included in the typed collection with `Name == null`.
 
-Lookup helpers such as `Find(...)` and `GetRequired(...)` are planned for a later retrieval API phase, not Stage 4.
+Lookup helpers such as `Find(...)` and `GetRequired(...)` are implemented in Phase 3.
+
+## Phase 3 targeted behaviour lookup
+
+Service behaviours and endpoint behaviours are separate WCF concepts, so the preferred Phase 3 usage keeps lookups on the explicit collection:
+
+```csharp
+var serviceBehavior = config.Behaviors.ServiceBehaviors.GetRequired(
+    "CustomerServiceBehavior");
+
+var endpointBehavior = config.Behaviors.EndpointBehaviors.GetRequired(
+    "CustomerEndpointBehavior");
+
+var unnamedServiceBehavior = config.Behaviors.ServiceBehaviors.Find(null);
+```
+
+Behaviour name matching is case-insensitive. A `null` lookup name should match an unnamed behaviour whose `Name` is `null`. An empty string should be treated as an actual empty-string lookup value. Phase 3 should avoid an ambiguous `config.Behaviors.GetRequired(name)` API because service behaviours and endpoint behaviours are distinct.
 
 ## Phase 2 Stage 5 usage: read client endpoints
 
@@ -396,6 +421,20 @@ if (config.Client is not null)
 ```
 
 The Stage 5 client endpoint model preserves all endpoint attributes through `endpoint.Attributes`, including unknown attributes. Missing optional attributes should produce `null` typed properties rather than a read failure. Unknown child elements under `<client>` should remain available through `config.Client.RawElement.Children` but should not be modelled as typed client endpoints in Stage 5.
+
+## Phase 3 targeted client endpoint lookup
+
+Client endpoint lookup mirrors service endpoint lookup:
+
+```csharp
+var clientEndpointByName = config.Client?.Endpoints.GetRequiredByName(
+    "CustomerClient");
+
+var clientEndpointByContract = config.Client?.Endpoints.GetRequiredByContract(
+    "MyCompany.Services.ICustomerService");
+```
+
+`FindByName(...)` matches `LegacyWcfClientEndpoint.Name`, and `FindByContract(...)` should match `LegacyWcfClientEndpoint.Contract`. Matching is case-insensitive. Blank lookup values should not match; `Find...` should return `null`, while `GetRequired...` should throw a clear `InvalidOperationException`. If multiple client endpoints match, Phase 3 should return the first matching endpoint and leave duplicate diagnostics to Phase 4 validation.
 
 
 ## Phase 2 Stage 6 usage: read serviceHostingEnvironment

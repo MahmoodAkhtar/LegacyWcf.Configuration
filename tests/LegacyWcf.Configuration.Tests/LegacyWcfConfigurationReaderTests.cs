@@ -1545,6 +1545,563 @@ public sealed class LegacyWcfConfigurationReaderTests : IDisposable
         Assert.Equal(2, rawElements.Count);
     }
 
+
+    [Fact]
+    public void Services_Find_WhenServiceExists_ReturnsService()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <services>
+      <service name="MyCompany.Services.CustomerService" />
+      <service name="MyCompany.Services.OrderService" />
+    </services>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+
+        var service = result.Configuration!.Services.Find("mycompany.services.customerservice");
+
+        Assert.NotNull(service);
+        Assert.Equal("MyCompany.Services.CustomerService", service!.Name);
+    }
+
+    [Fact]
+    public void Services_Find_WhenServiceDoesNotExist_ReturnsNull()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <services>
+      <service name="MyCompany.Services.CustomerService" />
+    </services>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+        Assert.Null(result.Configuration!.Services.Find("Missing.Service"));
+    }
+
+    [Fact]
+    public void Services_GetRequired_WhenServiceExists_ReturnsService()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <services>
+      <service name="MyCompany.Services.CustomerService" />
+    </services>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+
+        var service = result.Configuration!.Services.GetRequired("MyCompany.Services.CustomerService");
+
+        Assert.Equal("MyCompany.Services.CustomerService", service.Name);
+    }
+
+    [Fact]
+    public void Services_GetRequired_WhenServiceDoesNotExist_ThrowsClearException()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <services>
+      <service name="MyCompany.Services.CustomerService" />
+    </services>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => result.Configuration!.Services.GetRequired("Missing.Service"));
+
+        Assert.Contains("Missing.Service", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ServiceEndpoints_FindByName_WhenEndpointExists_ReturnsEndpoint()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <services>
+      <service name="MyCompany.Services.CustomerService">
+        <endpoint
+          name="CustomerEndpoint"
+          address="basic"
+          binding="basicHttpBinding"
+          contract="MyCompany.Services.ICustomerService" />
+      </service>
+    </services>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+
+        var endpoint = result.Configuration!.Services[0].Endpoints.FindByName("customerendpoint");
+
+        Assert.NotNull(endpoint);
+        Assert.Equal("CustomerEndpoint", endpoint!.Name);
+    }
+
+    [Fact]
+    public void ServiceEndpoints_FindByContract_WhenEndpointExists_ReturnsEndpoint()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <services>
+      <service name="MyCompany.Services.CustomerService">
+        <endpoint
+          name="CustomerEndpoint"
+          address="basic"
+          binding="basicHttpBinding"
+          contract="MyCompany.Services.ICustomerService" />
+      </service>
+    </services>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+
+        var endpoint = result.Configuration!.Services[0].Endpoints.FindByContract("mycompany.services.icustomerservice");
+
+        Assert.NotNull(endpoint);
+        Assert.Equal("MyCompany.Services.ICustomerService", endpoint!.Contract);
+    }
+
+    [Fact]
+    public void ServiceEndpoints_GetRequiredByName_WhenEndpointMissing_ThrowsClearException()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <services>
+      <service name="MyCompany.Services.CustomerService">
+        <endpoint name="CustomerEndpoint" contract="MyCompany.Services.ICustomerService" />
+      </service>
+    </services>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => result.Configuration!.Services[0].Endpoints.GetRequiredByName("MissingEndpoint"));
+
+        Assert.Contains("MissingEndpoint", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ServiceEndpoints_GetRequiredByContract_WhenEndpointMissing_ThrowsClearException()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <services>
+      <service name="MyCompany.Services.CustomerService">
+        <endpoint name="CustomerEndpoint" contract="MyCompany.Services.ICustomerService" />
+      </service>
+    </services>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => result.Configuration!.Services[0].Endpoints.GetRequiredByContract("Missing.Contract"));
+
+        Assert.Contains("Missing.Contract", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Bindings_Find_OnBindingCollection_WhenNamedBindingExists_ReturnsBinding()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <bindings>
+      <basicHttpBinding>
+        <binding name="CustomerBinding" />
+      </basicHttpBinding>
+    </bindings>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+
+        var binding = result.Configuration!.Bindings.BasicHttp.Find("customerbinding");
+
+        Assert.NotNull(binding);
+        Assert.Equal("CustomerBinding", binding!.Name);
+    }
+
+    [Fact]
+    public void Bindings_Find_OnBindingCollection_WhenUnnamedBindingExists_ReturnsUnnamedBinding()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <bindings>
+      <basicHttpBinding>
+        <binding maxReceivedMessageSize="65536" />
+      </basicHttpBinding>
+    </bindings>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+
+        var binding = result.Configuration!.Bindings.BasicHttp.Find(null);
+
+        Assert.NotNull(binding);
+        Assert.Null(binding!.Name);
+        Assert.Equal("65536", binding.Attributes["maxReceivedMessageSize"]);
+    }
+
+    [Fact]
+    public void Bindings_GetRequired_OnBindingCollection_WhenMissing_ThrowsClearException()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <bindings>
+      <basicHttpBinding>
+        <binding name="CustomerBinding" />
+      </basicHttpBinding>
+    </bindings>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => result.Configuration!.Bindings.BasicHttp.GetRequired("MissingBinding"));
+
+        Assert.Contains("MissingBinding", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Bindings_Find_OnTopLevelBindings_WhenKnownBindingTypeAndNameExist_ReturnsBinding()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <bindings>
+      <basicHttpBinding>
+        <binding name="CustomerBasicBinding" />
+      </basicHttpBinding>
+      <wsHttpBinding>
+        <binding name="CustomerWsBinding" />
+      </wsHttpBinding>
+      <netTcpBinding>
+        <binding name="CustomerTcpBinding" />
+      </netTcpBinding>
+      <customBinding>
+        <binding name="CustomerCustomBinding" />
+      </customBinding>
+    </bindings>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+
+        Assert.Equal("CustomerBasicBinding", result.Configuration!.Bindings.Find("basicHttpBinding", "customerbasicbinding")!.Name);
+        Assert.Equal("CustomerWsBinding", result.Configuration.Bindings.Find("wsHttpBinding", "customerwsbinding")!.Name);
+        Assert.Equal("CustomerTcpBinding", result.Configuration.Bindings.Find("netTcpBinding", "customertcpbinding")!.Name);
+        Assert.Equal("CustomerCustomBinding", result.Configuration.Bindings.Find("customBinding", "customercustombinding")!.Name);
+    }
+
+    [Fact]
+    public void Bindings_Find_OnTopLevelBindings_WhenUnknownBindingType_ReturnsNull()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <bindings>
+      <basicHttpBinding>
+        <binding name="CustomerBinding" />
+      </basicHttpBinding>
+    </bindings>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+        Assert.Null(result.Configuration!.Bindings.Find("unknownBinding", "CustomerBinding"));
+    }
+
+    [Fact]
+    public void Bindings_GetRequired_OnTopLevelBindings_WhenMissing_ThrowsClearException()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <bindings>
+      <basicHttpBinding>
+        <binding name="CustomerBinding" />
+      </basicHttpBinding>
+    </bindings>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => result.Configuration!.Bindings.GetRequired("basicHttpBinding", "MissingBinding"));
+
+        Assert.Contains("basicHttpBinding", exception.Message, StringComparison.Ordinal);
+        Assert.Contains("MissingBinding", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Behaviors_Find_WhenNamedBehaviorExists_ReturnsBehavior()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <behaviors>
+      <serviceBehaviors>
+        <behavior name="CustomerServiceBehavior" />
+      </serviceBehaviors>
+      <endpointBehaviors>
+        <behavior name="CustomerEndpointBehavior" />
+      </endpointBehaviors>
+    </behaviors>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+
+        Assert.Equal("CustomerServiceBehavior", result.Configuration!.Behaviors.ServiceBehaviors.Find("customerservicebehavior")!.Name);
+        Assert.Equal("CustomerEndpointBehavior", result.Configuration.Behaviors.EndpointBehaviors.Find("customerendpointbehavior")!.Name);
+    }
+
+    [Fact]
+    public void Behaviors_Find_WhenUnnamedBehaviorExists_ReturnsUnnamedBehavior()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <behaviors>
+      <serviceBehaviors>
+        <behavior>
+          <serviceMetadata httpGetEnabled="true" />
+        </behavior>
+      </serviceBehaviors>
+    </behaviors>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+
+        var behavior = result.Configuration!.Behaviors.ServiceBehaviors.Find(null);
+
+        Assert.NotNull(behavior);
+        Assert.Null(behavior!.Name);
+    }
+
+    [Fact]
+    public void Behaviors_GetRequired_WhenMissing_ThrowsClearException()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <behaviors>
+      <serviceBehaviors>
+        <behavior name="CustomerServiceBehavior" />
+      </serviceBehaviors>
+    </behaviors>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => result.Configuration!.Behaviors.ServiceBehaviors.GetRequired("MissingBehavior"));
+
+        Assert.Contains("MissingBehavior", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ClientEndpoints_FindByName_WhenEndpointExists_ReturnsEndpoint()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <client>
+      <endpoint
+        name="CustomerClient"
+        address="http://localhost:8080/CustomerService"
+        binding="basicHttpBinding"
+        contract="MyCompany.Services.ICustomerService" />
+    </client>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+        Assert.NotNull(result.Configuration!.Client);
+
+        var endpoint = result.Configuration.Client!.Endpoints.FindByName("customerclient");
+
+        Assert.NotNull(endpoint);
+        Assert.Equal("CustomerClient", endpoint!.Name);
+    }
+
+    [Fact]
+    public void ClientEndpoints_FindByContract_WhenEndpointExists_ReturnsEndpoint()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <client>
+      <endpoint
+        name="CustomerClient"
+        address="http://localhost:8080/CustomerService"
+        binding="basicHttpBinding"
+        contract="MyCompany.Services.ICustomerService" />
+    </client>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+        Assert.NotNull(result.Configuration!.Client);
+
+        var endpoint = result.Configuration.Client!.Endpoints.FindByContract("mycompany.services.icustomerservice");
+
+        Assert.NotNull(endpoint);
+        Assert.Equal("MyCompany.Services.ICustomerService", endpoint!.Contract);
+    }
+
+    [Fact]
+    public void ClientEndpoints_GetRequiredByName_WhenEndpointMissing_ThrowsClearException()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <client>
+      <endpoint name="CustomerClient" contract="MyCompany.Services.ICustomerService" />
+    </client>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+        Assert.NotNull(result.Configuration!.Client);
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => result.Configuration.Client!.Endpoints.GetRequiredByName("MissingClient"));
+
+        Assert.Contains("MissingClient", exception.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ClientEndpoints_GetRequiredByContract_WhenEndpointMissing_ThrowsClearException()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <client>
+      <endpoint name="CustomerClient" contract="MyCompany.Services.ICustomerService" />
+    </client>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+        Assert.NotNull(result.Configuration!.Client);
+
+        var exception = Assert.Throws<InvalidOperationException>(
+            () => result.Configuration.Client!.Endpoints.GetRequiredByContract("Missing.Contract"));
+
+        Assert.Contains("Missing.Contract", exception.Message, StringComparison.Ordinal);
+    }
+
     private string WriteConfig(string xml)
     {
         var filePath = Path.Combine(_tempDirectory, $"{Guid.NewGuid():N}.config");

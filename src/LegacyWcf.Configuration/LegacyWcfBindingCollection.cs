@@ -9,8 +9,7 @@ namespace LegacyWcf.Configuration;
 /// Represents a typed enumerable collection of WCF binding configurations.
 /// </summary>
 /// <remarks>
-/// Phase 2 Stage 3 intentionally provides enumeration, count, indexer, and LINQ support only.
-/// Targeted lookup helpers are planned for a later retrieval API phase.
+/// Phase 3 adds targeted lookup helpers on top of the enumerable binding collection.
 /// </remarks>
 public sealed class LegacyWcfBindingCollection : IReadOnlyList<LegacyWcfBinding>
 {
@@ -43,6 +42,41 @@ public sealed class LegacyWcfBindingCollection : IReadOnlyList<LegacyWcfBinding>
     public LegacyWcfBinding this[int index] => _bindings[index];
 
     /// <summary>
+    /// Finds the first binding with the specified configuration name.
+    /// </summary>
+    /// <param name="name">The binding configuration name to find, or <see langword="null"/> for an unnamed binding.</param>
+    /// <returns>The first matching binding, or <see langword="null"/> when no binding matches.</returns>
+    /// <remarks>
+    /// Matching is case-insensitive. A <see langword="null"/> lookup value matches an
+    /// unnamed binding whose <see cref="LegacyWcfBinding.Name"/> is <see langword="null"/>.
+    /// Empty string is treated as an actual empty-string lookup value.
+    /// </remarks>
+    public LegacyWcfBinding? Find(string? name)
+    {
+        return _bindings.FirstOrDefault(
+            binding => string.Equals(binding.Name, name, StringComparison.OrdinalIgnoreCase));
+    }
+
+    /// <summary>
+    /// Gets the first binding with the specified configuration name.
+    /// </summary>
+    /// <param name="name">The binding configuration name to retrieve, or <see langword="null"/> for an unnamed binding.</param>
+    /// <returns>The first matching binding.</returns>
+    /// <exception cref="InvalidOperationException">No matching binding exists.</exception>
+    public LegacyWcfBinding GetRequired(string? name)
+    {
+        var binding = Find(name);
+
+        if (binding is null)
+        {
+            throw new InvalidOperationException(
+                "A WCF binding named '" + FormatLookupValue(name) + "' was not found in this binding collection.");
+        }
+
+        return binding;
+    }
+
+    /// <summary>
     /// Returns an enumerator that iterates through the binding collection.
     /// </summary>
     /// <returns>A binding enumerator.</returns>
@@ -58,5 +92,10 @@ public sealed class LegacyWcfBindingCollection : IReadOnlyList<LegacyWcfBinding>
     IEnumerator IEnumerable.GetEnumerator()
     {
         return GetEnumerator();
+    }
+
+    private static string FormatLookupValue(string? value)
+    {
+        return value ?? "<null>";
     }
 }

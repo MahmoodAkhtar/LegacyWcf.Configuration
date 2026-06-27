@@ -381,7 +381,7 @@ File path
   -> return LegacyWcfConfiguration with RawSystemServiceModel and Services
 ```
 
-The current Phase 2 Stage 5 reader flow keeps that raw-first approach and then builds typed services, bindings, behaviours, and client endpoint models from the preserved raw tree before returning `LegacyWcfConfiguration`. Phase 2 Stage 6 extends this flow by building a typed `serviceHostingEnvironment` model from the preserved raw tree before constructing `LegacyWcfConfiguration`.
+The current reader flow keeps that raw-first approach and then builds typed services, bindings, behaviours, client endpoint models, and serviceHostingEnvironment from the preserved raw tree before returning `LegacyWcfConfiguration`. Phase 3 adds retrieval helpers on top of those typed collections without changing the reader flow.
 
 Every typed object should expose its raw element:
 
@@ -615,6 +615,12 @@ Stage 6 parsing is built from `LegacyWcfElement` in `LegacyWcfTypedModelBuilder`
 
 Stage 6 does not parse boolean values into `bool`, validate boolean strings, add lookup helpers, emit duplicate diagnostics, add CoreWCF mapping, generate code, or add CLI tooling. If more than one direct `<serviceHostingEnvironment>` element exists, Stage 6 parses the first direct element and preserves all elements in `RawSystemServiceModel`; duplicate diagnostics belong to a later validation phase.
 
+### Phase 3 retrieval API boundary
+
+Phase 3 is implemented and adds additive lookup helpers to the existing typed collections. It does not change XML parsing, raw XML preservation, diagnostics, or CoreWCF package boundaries.
+
+Implemented lookup helpers include service lookup by name, service endpoint lookup by name and contract, binding lookup by name and by top-level binding type plus name, behaviour lookup by name, and client endpoint lookup by name and contract. Matching is case-insensitive. `Find...` helpers return `null` for missing values. `GetRequired...` helpers throw `InvalidOperationException` with context-rich messages. If duplicates exist, the first matching object is returned and duplicate diagnostics remain a later validation concern.
+
 ## Typed collections
 
 Major collections should be typed and enumerable.
@@ -672,6 +678,79 @@ This pattern should be considered for:
 - binding collections
 - service behaviours
 - endpoint behaviours
+
+## Phase 3 retrieval API boundary
+
+Phase 3 is the next planned implementation slice. It should add targeted retrieval APIs on top of the existing typed collections without changing how XML is read or typed models are built.
+
+Phase 3 belongs in the public typed collection classes because those classes already own enumeration and indexing for their item types. The retrieval helpers should be additive convenience APIs over those lists, not a new parser layer and not a validation system.
+
+Planned collection-level helpers:
+
+```text
+LegacyWcfServices
+- Find(string name)
+- GetRequired(string name)
+
+LegacyWcfServiceEndpoints
+- FindByName(string name)
+- GetRequiredByName(string name)
+- FindByContract(string contract)
+- GetRequiredByContract(string contract)
+
+LegacyWcfBindingCollection
+- Find(string? name)
+- GetRequired(string? name)
+
+LegacyWcfBehaviorCollection
+- Find(string? name)
+- GetRequired(string? name)
+
+LegacyWcfClientEndpoints
+- FindByName(string name)
+- GetRequiredByName(string name)
+- FindByContract(string contract)
+- GetRequiredByContract(string contract)
+```
+
+Planned top-level binding helpers:
+
+```text
+LegacyWcfBindings
+- Find(string? bindingType, string? name)
+- GetRequired(string? bindingType, string? name)
+```
+
+The top-level binding helpers should route known binding type values to the existing typed binding collections:
+
+```text
+basicHttpBinding -> BasicHttp
+wsHttpBinding    -> WsHttp
+netTcpBinding    -> NetTcp
+customBinding    -> Custom
+```
+
+Service behaviour and endpoint behaviour lookups should remain explicit. Collection-level usage is preferred:
+
+```csharp
+config.Behaviors.ServiceBehaviors.GetRequired("CustomerServiceBehavior");
+config.Behaviors.EndpointBehaviors.GetRequired("CustomerEndpointBehavior");
+```
+
+Avoid an ambiguous `config.Behaviors.GetRequired(name)` helper because service behaviours and endpoint behaviours are separate WCF concepts. If top-level behaviour helpers are ever added, they should use explicit names such as `GetRequiredServiceBehavior(...)` and `GetRequiredEndpointBehavior(...)`.
+
+Phase 3 matching rules:
+
+- use case-insensitive matching for WCF names and identifiers
+- return `null` from `Find...` helpers when no match exists
+- throw `InvalidOperationException` from `GetRequired...` helpers when no match exists
+- include useful lookup context in required-lookup exception messages
+- return the first matching item if duplicates exist
+- do not emit diagnostics from lookup helpers
+- do not validate duplicate names or missing binding/behaviour references
+- do not add lookup helpers to `LegacyWcfServiceHostingEnvironment`, because there is only one typed value on `LegacyWcfConfiguration`
+
+The reader flow should not change for Phase 3. The raw `<system.serviceModel>` tree remains the source of truth, and typed models remain additive views over the preserved raw tree.
 
 ## Diagnostics philosophy
 
@@ -826,4 +905,3 @@ Phase 1 tests currently cover:
 - returning a clear diagnostic for a missing `<configuration>` root
 - returning a clear diagnostic for a missing `<system.serviceModel>` section
 - populating source file path and line number where practical
-

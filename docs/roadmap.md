@@ -254,13 +254,17 @@ Stage 6 parses only from the preserved `LegacyWcfElement` tree. It does not pars
 
 ## Phase 3: Retrieval APIs
 
+Status: implemented.
+
 Goal:
 
 ```text
 Make common WCF lookups easy.
 ```
 
-Possible APIs:
+Phase 3 adds additive lookup helpers on top of the existing typed collections. It should not change parsing, raw XML preservation, diagnostics, or CoreWCF boundaries.
+
+Planned APIs:
 
 ```csharp
 config.Services.Find(serviceName);
@@ -271,6 +275,9 @@ service.Endpoints.FindByContract(contractName);
 service.Endpoints.GetRequiredByName(endpointName);
 service.Endpoints.GetRequiredByContract(contractName);
 
+config.Bindings.BasicHttp.Find(bindingConfigurationName);
+config.Bindings.BasicHttp.GetRequired(bindingConfigurationName);
+
 config.Bindings.Find(bindingType, bindingConfigurationName);
 config.Bindings.GetRequired(bindingType, bindingConfigurationName);
 
@@ -279,9 +286,20 @@ config.Behaviors.ServiceBehaviors.GetRequired(name);
 
 config.Behaviors.EndpointBehaviors.Find(name);
 config.Behaviors.EndpointBehaviors.GetRequired(name);
+
+config.Client?.Endpoints.FindByName(endpointName);
+config.Client?.Endpoints.FindByContract(contractName);
+config.Client?.Endpoints.GetRequiredByName(endpointName);
+config.Client?.Endpoints.GetRequiredByContract(contractName);
 ```
 
+Phase 3 uses case-insensitive matching for WCF names and identifiers. `Find...` methods return `null` when no item matches. `GetRequired...` methods throw a clear `InvalidOperationException` when no item matches. If duplicates exist, Phase 3 returns the first matching item and leave duplicate diagnostics to Phase 4 validation.
+
+Phase 3 includes tests for service, service endpoint, binding, behaviour, and client endpoint lookup helpers, including missing lookup values and required-lookup exception messages. Existing Phase 1 and Phase 2 behaviour remains unchanged.
+
 This phase gives developers the first major practical payoff: they can read old config files and retrieve the values they need in code.
+
+Phase 3 should not include validation diagnostics, duplicate detection, missing binding reference diagnostics, missing behaviour reference diagnostics, CoreWCF mapping, code generation, CLI tooling, richer binding-specific models, or richer behaviour-specific models.
 
 ## Phase 4: Validation and diagnostics
 
@@ -399,7 +417,7 @@ The MVP should include:
 - client endpoint support (implemented)
 - serviceHostingEnvironment support (implemented)
 - typed enumerable collections
-- `Find(...)` and `GetRequired(...)` where useful
+- `Find(...)` and `GetRequired(...)` where useful (implemented)
 - permissive diagnostics
 - representative test config files
 

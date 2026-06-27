@@ -164,7 +164,7 @@ if (config.ServiceHostingEnvironment is not null)
 }
 ```
 
-Future typed model APIs are intended to make common WCF concepts directly queryable:
+Common WCF concepts are now directly queryable through Phase 3 retrieval APIs:
 
 ```csharp
 foreach (var service in config.Services)
@@ -181,7 +181,7 @@ foreach (var service in config.Services)
 }
 ```
 
-Targeted lookup should also be supported in a later phase:
+Targeted lookup is supported by the Phase 3 retrieval APIs:
 
 ```csharp
 var service = config.Services.GetRequired(
@@ -198,7 +198,7 @@ var baseAddresses = service.Host?.BaseAddresses ?? [];
 ```
 
 
-## Current implementation slice: Phase 2 Stage 6 typed services, endpoints, hosts, bindings, behaviours, client endpoints, and serviceHostingEnvironment
+## Current implementation slice: Phase 3 retrieval APIs
 
 **Phase 1: Full-fidelity reader is implemented.**
 
@@ -213,6 +213,8 @@ var baseAddresses = service.Host?.BaseAddresses ?? [];
 **Phase 2 Stage 5: Typed client endpoint support is implemented.**
 
 **Phase 2 Stage 6: Typed `serviceHostingEnvironment` support is implemented.**
+
+**Phase 3: Retrieval APIs are implemented.**
 
 The reader now preserves the full raw `<system.serviceModel>` XML tree and builds additive typed models for the currently supported WCF concepts. Raw XML remains the source of truth, and every typed service, endpoint, host, host timeout, binding, behaviour, client, client endpoint, and service hosting environment object keeps access to its source `LegacyWcfElement`.
 
@@ -283,11 +285,45 @@ The implemented Stage 4 behaviour API adds typed behaviour models, typed behavio
 
 The implemented Stage 5 client endpoint API adds typed client models, typed client endpoint models, typed client endpoint collections, and a top-level `config.Client` property. Client endpoint values are parsed from the preserved raw `LegacyWcfElement` tree, each typed client endpoint retains its source raw `<endpoint>` element, all source endpoint attributes are preserved through `endpoint.Attributes`, and unknown child elements under `<client>` remain preserved in raw XML.
 
-The implemented Stage 6 service hosting environment API adds a typed `LegacyWcfServiceHostingEnvironment` model and a top-level `config.ServiceHostingEnvironment` property. Values are parsed from the preserved raw `LegacyWcfElement` tree, `aspNetCompatibilityEnabled` and `multipleSiteBindingsEnabled` are preserved as strings, all source attributes are preserved through `Attributes`, and unknown child elements remain preserved through `RawElement.Children`. Stage 6 does not add lookup APIs, validation diagnostics, CoreWCF mapping, code generation, or CLI tooling.
+The implemented Stage 6 service hosting environment API adds a typed `LegacyWcfServiceHostingEnvironment` model and a top-level `config.ServiceHostingEnvironment` property. Values are parsed from the preserved raw `LegacyWcfElement` tree, `aspNetCompatibilityEnabled` and `multipleSiteBindingsEnabled` are preserved as strings, all source attributes are preserved through `Attributes`, and unknown child elements remain preserved through `RawElement.Children`. Stage 6 did not add lookup APIs, validation diagnostics, CoreWCF mapping, code generation, or CLI tooling. Phase 3 now adds lookup APIs only.
 
-## Next implementation slice: Phase 3 retrieval APIs
+## Current retrieval APIs: Phase 3
 
-The next documentation-backed implementation slice should add targeted retrieval APIs such as `Find(...)` and `GetRequired(...)` where useful. These lookup helpers should sit on top of the typed model without weakening raw XML preservation.
+Phase 3 retrieval APIs are implemented. This is an additive API phase on top of the existing typed model. It makes common WCF lookups easy without changing reader behaviour, parser flow, raw XML preservation, diagnostics, or CoreWCF boundaries.
+
+Phase 3 adds lookup helpers where the existing typed collections already expose enough data to support them:
+
+```csharp
+var service = config.Services.GetRequired(
+    "MyCompany.Services.CustomerService");
+
+var serviceEndpoint = service.Endpoints.GetRequiredByContract(
+    "MyCompany.Services.ICustomerService");
+
+var binding = config.Bindings.GetRequired(
+    serviceEndpoint.Binding,
+    serviceEndpoint.BindingConfiguration);
+
+var serviceBehavior = config.Behaviors.ServiceBehaviors.GetRequired(
+    service.BehaviorConfiguration);
+
+var clientEndpoint = config.Client?.Endpoints.GetRequiredByContract(
+    "MyCompany.Services.ICustomerService");
+```
+
+Implemented Phase 3 lookup helpers include:
+
+- `config.Services.Find(name)` and `config.Services.GetRequired(name)`
+- `service.Endpoints.FindByName(name)` and `service.Endpoints.GetRequiredByName(name)`
+- `service.Endpoints.FindByContract(contract)` and `service.Endpoints.GetRequiredByContract(contract)`
+- `config.Bindings.Find(bindingType, name)` and `config.Bindings.GetRequired(bindingType, name)`
+- `config.Bindings.BasicHttp.Find(name)` and `config.Bindings.BasicHttp.GetRequired(name)`, with the same collection-level pattern for other known binding groups
+- `config.Behaviors.ServiceBehaviors.Find(name)` and `config.Behaviors.ServiceBehaviors.GetRequired(name)`
+- `config.Behaviors.EndpointBehaviors.Find(name)` and `config.Behaviors.EndpointBehaviors.GetRequired(name)`
+- `config.Client?.Endpoints.FindByName(name)` and `config.Client?.Endpoints.GetRequiredByName(name)`
+- `config.Client?.Endpoints.FindByContract(contract)` and `config.Client?.Endpoints.GetRequiredByContract(contract)`
+
+Find-style helpers return `null` when no match exists. Required helpers throw a clear `InvalidOperationException` when the requested object cannot be found. Matching is case-insensitive for WCF names and identifiers. If duplicates exist, Phase 3 returns the first matching object and leaves duplicate diagnostics to Phase 4 validation.
 
 ## Relationship to CoreWCF
 
