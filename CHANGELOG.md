@@ -29,6 +29,36 @@ This project follows a simple changelog format:
 
 - None.
 
+## [0.3.0] - 2026-06-27
+
+### Added
+
+- Added Phase 3 retrieval APIs for typed WCF services through `LegacyWcfServices.Find(string name)` and `LegacyWcfServices.GetRequired(string name)`.
+- Added Phase 3 retrieval APIs for service endpoints through `LegacyWcfServiceEndpoints.FindByName(string name)`, `LegacyWcfServiceEndpoints.GetRequiredByName(string name)`, `LegacyWcfServiceEndpoints.FindByContract(string contract)`, and `LegacyWcfServiceEndpoints.GetRequiredByContract(string contract)`.
+- Added Phase 3 retrieval APIs for typed binding collections through `LegacyWcfBindingCollection.Find(string? name)` and `LegacyWcfBindingCollection.GetRequired(string? name)`.
+- Added Phase 3 top-level binding lookup through `LegacyWcfBindings.Find(string? bindingType, string? name)` and `LegacyWcfBindings.GetRequired(string? bindingType, string? name)`.
+- Added Phase 3 retrieval APIs for typed behaviour collections through `LegacyWcfBehaviorCollection.Find(string? name)` and `LegacyWcfBehaviorCollection.GetRequired(string? name)`.
+- Added Phase 3 retrieval APIs for client endpoints through `LegacyWcfClientEndpoints.FindByName(string name)`, `LegacyWcfClientEndpoints.GetRequiredByName(string name)`, `LegacyWcfClientEndpoints.FindByContract(string contract)`, and `LegacyWcfClientEndpoints.GetRequiredByContract(string contract)`.
+- Added case-insensitive matching for WCF names and identifiers in Phase 3 lookup helpers.
+- Added required lookup failure behaviour using clear `InvalidOperationException` messages when `GetRequired...` helpers cannot find a matching item.
+- Added support for `null` lookup names in binding and behaviour collection lookups so unnamed bindings and behaviours can be retrieved.
+- Added tests covering Phase 3 service, service endpoint, binding, behaviour, and client endpoint lookup helpers, including missing lookup values and required-lookup exception messages.
+
+### Changed
+
+- Expanded the library from a Phase 2 typed WCF configuration model into a queryable typed model with targeted retrieval helpers.
+- Kept Phase 3 as an additive API convenience phase: XML parsing, raw XML preservation, diagnostics, and CoreWCF package boundaries remain unchanged.
+- Left duplicate detection, missing binding reference diagnostics, missing behaviour reference diagnostics, and broader validation concerns for Phase 4.
+- Updated documentation to describe Phase 3 retrieval APIs as implemented and Phase 4 validation and diagnostics as the next planned phase.
+
+### Fixed
+
+- Nothing yet.
+
+### Breaking Changes
+
+- None.
+
 ## [0.2.0] - 2026-06-27
 
 ### Added
