@@ -67,12 +67,12 @@ src/LegacyWcf.Configuration/
 
 Phase 1 does not include typed services, endpoints, bindings, behaviours, lookup APIs, CoreWCF mapping, code generation, or CLI tooling.
 
-### Phase 1 test status
+### Current overall test status
 
-The latest provided test run after Stage 3 passed:
+The latest provided full test run after Phase 2 Stage 5 passed:
 
-- total tests: 26
-- passed: 26
+- total tests: 42
+- passed: 42
 - failed: 0
 - skipped: 0
 
@@ -220,11 +220,27 @@ Stage 4 does not add:
 - CLI tooling
 
 
+### Phase 2 Stage 5: typed client endpoints
+
+Status: implemented.
+
+Stage 5 adds typed support for WCF client endpoint configuration only:
+
+- `LegacyWcfClient`
+- `LegacyWcfClientEndpoint`
+- `LegacyWcfClientEndpoints`
+- `LegacyWcfConfiguration.Client`
+- endpoint attributes: `name`, `address`, `binding`, `bindingConfiguration`, `contract`, and `behaviorConfiguration`
+- all source endpoint attributes preserved through `LegacyWcfClientEndpoint.Attributes`
+- raw XML fallback for the `<client>` element and every typed client endpoint
+- tests for named endpoints, behaviour configuration, multiple endpoints in order, missing `<client>`, empty `<client>`, missing optional endpoint attributes, unknown endpoint attributes, and unknown client child elements
+
+Stage 5 parses only from the preserved `LegacyWcfElement` tree. It does not parse directly from `XDocument` or `XElement`, validate binding or behaviour references, add lookup helpers, add CoreWCF mapping, generate code, add CLI tooling, or implement `serviceHostingEnvironment`.
+
 ### Phase 2 later typed model stages
 
-Later Phase 2 slices after Stage 4 should add the remaining typed WCF model areas:
+Later Phase 2 slices after Stage 5 should add the remaining typed WCF model areas:
 
-- client endpoints
 - serviceHostingEnvironment
 
 These should remain additive views over the preserved raw XML tree and should not introduce CoreWCF dependencies.
@@ -373,7 +389,7 @@ The MVP should include:
 - host/baseAddresses support
 - initial binding support
 - initial behaviour support
-- client endpoint support
+- client endpoint support (implemented)
 - typed enumerable collections
 - `Find(...)` and `GetRequired(...)` where useful
 - permissive diagnostics

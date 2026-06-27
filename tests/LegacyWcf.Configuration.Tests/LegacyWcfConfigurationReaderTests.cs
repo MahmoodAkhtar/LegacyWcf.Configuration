@@ -1085,6 +1085,263 @@ public sealed class LegacyWcfConfigurationReaderTests : IDisposable
         Assert.Single(endpointBehavior.RawElement.Children, child => child.Name == "clientCredentials");
     }
 
+
+    [Fact]
+    public void Read_WhenClientEndpointExists_PopulatesTypedClientEndpoint()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <client>
+      <endpoint
+        name="CustomerClient"
+        address="http://localhost:8080/CustomerService"
+        binding="basicHttpBinding"
+        bindingConfiguration="CustomerBinding"
+        contract="MyCompany.Services.ICustomerService" />
+    </client>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+        Assert.NotNull(result.Configuration!.Client);
+
+        var endpoint = Assert.Single(result.Configuration.Client!.Endpoints);
+        Assert.Equal("CustomerClient", endpoint.Name);
+        Assert.Equal("http://localhost:8080/CustomerService", endpoint.Address);
+        Assert.Equal("basicHttpBinding", endpoint.Binding);
+        Assert.Equal("CustomerBinding", endpoint.BindingConfiguration);
+        Assert.Equal("MyCompany.Services.ICustomerService", endpoint.Contract);
+        Assert.Null(endpoint.BehaviorConfiguration);
+        Assert.Equal("CustomerClient", endpoint.Attributes["name"]);
+        Assert.Equal("http://localhost:8080/CustomerService", endpoint.Attributes["address"]);
+        Assert.Equal("basicHttpBinding", endpoint.Attributes["binding"]);
+        Assert.Equal("CustomerBinding", endpoint.Attributes["bindingConfiguration"]);
+        Assert.Equal("MyCompany.Services.ICustomerService", endpoint.Attributes["contract"]);
+        Assert.NotNull(endpoint.RawElement);
+        Assert.Equal("endpoint", endpoint.RawElement.Name);
+    }
+
+    [Fact]
+    public void Read_WhenClientEndpointHasBehaviorConfiguration_PopulatesBehaviorConfiguration()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <client>
+      <endpoint
+        name="CustomerClient"
+        address="http://localhost:8080/CustomerService"
+        binding="basicHttpBinding"
+        bindingConfiguration="CustomerBinding"
+        contract="MyCompany.Services.ICustomerService"
+        behaviorConfiguration="CustomerEndpointBehavior" />
+    </client>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+        Assert.NotNull(result.Configuration!.Client);
+
+        var endpoint = Assert.Single(result.Configuration.Client!.Endpoints);
+        Assert.Equal("CustomerEndpointBehavior", endpoint.BehaviorConfiguration);
+        Assert.Equal("CustomerEndpointBehavior", endpoint.Attributes["behaviorConfiguration"]);
+    }
+
+    [Fact]
+    public void Read_WhenClientHasMultipleEndpoints_PopulatesAllClientEndpointsInOrder()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <client>
+      <endpoint
+        name="CustomerClient"
+        address="http://localhost:8080/CustomerService"
+        binding="basicHttpBinding"
+        bindingConfiguration="CustomerBinding"
+        contract="MyCompany.Services.ICustomerService" />
+      <endpoint
+        name="OrderClient"
+        address="http://localhost:8080/OrderService"
+        binding="wsHttpBinding"
+        bindingConfiguration="OrderBinding"
+        contract="MyCompany.Services.IOrderService" />
+    </client>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+        Assert.NotNull(result.Configuration!.Client);
+        Assert.Equal(2, result.Configuration.Client!.Endpoints.Count);
+        Assert.Equal("CustomerClient", result.Configuration.Client.Endpoints[0].Name);
+        Assert.Equal("http://localhost:8080/CustomerService", result.Configuration.Client.Endpoints[0].Address);
+        Assert.Equal("MyCompany.Services.ICustomerService", result.Configuration.Client.Endpoints[0].Contract);
+        Assert.Equal("OrderClient", result.Configuration.Client.Endpoints[1].Name);
+        Assert.Equal("http://localhost:8080/OrderService", result.Configuration.Client.Endpoints[1].Address);
+        Assert.Equal("MyCompany.Services.IOrderService", result.Configuration.Client.Endpoints[1].Contract);
+        Assert.NotSame(result.Configuration.Client.Endpoints[0].RawElement, result.Configuration.Client.Endpoints[1].RawElement);
+    }
+
+    [Fact]
+    public void Read_WhenClientElementIsMissing_ClientIsNull()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <services>
+      <service name="MyCompany.Services.CustomerService">
+        <host>
+          <baseAddresses>
+            <add baseAddress="http://localhost:8080/CustomerService" />
+          </baseAddresses>
+        </host>
+        <endpoint contract="MyCompany.Services.ICustomerService" />
+      </service>
+    </services>
+    <bindings>
+      <basicHttpBinding>
+        <binding name="CustomerBinding" />
+      </basicHttpBinding>
+    </bindings>
+    <behaviors>
+      <serviceBehaviors>
+        <behavior name="CustomerServiceBehavior" />
+      </serviceBehaviors>
+    </behaviors>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+        Assert.Null(result.Configuration!.Client);
+        Assert.Single(result.Configuration.Services);
+        Assert.NotNull(result.Configuration.Services[0].Host);
+        Assert.Single(result.Configuration.Bindings.BasicHttp);
+        Assert.Single(result.Configuration.Behaviors.ServiceBehaviors);
+    }
+
+    [Fact]
+    public void Read_WhenClientHasNoEndpoints_ClientExistsWithEmptyEndpointCollection()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <client>
+    </client>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+        Assert.NotNull(result.Configuration!.Client);
+        Assert.Empty(result.Configuration.Client!.Endpoints);
+        Assert.Equal("client", result.Configuration.Client.RawElement.Name);
+    }
+
+    [Fact]
+    public void Read_WhenClientEndpointAttributesAreMissing_PreservesEndpointWithNullTypedValues()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <client>
+      <endpoint contract="MyCompany.Services.ICustomerService" />
+    </client>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+        Assert.NotNull(result.Configuration!.Client);
+
+        var endpoint = Assert.Single(result.Configuration.Client!.Endpoints);
+        Assert.Null(endpoint.Name);
+        Assert.Null(endpoint.Address);
+        Assert.Null(endpoint.Binding);
+        Assert.Null(endpoint.BindingConfiguration);
+        Assert.Equal("MyCompany.Services.ICustomerService", endpoint.Contract);
+        Assert.Null(endpoint.BehaviorConfiguration);
+        Assert.NotNull(endpoint.RawElement);
+        Assert.Equal("endpoint", endpoint.RawElement.Name);
+    }
+
+    [Fact]
+    public void Read_WhenClientEndpointContainsUnknownAttribute_PreservesAttribute()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <client>
+      <endpoint
+        name="CustomerClient"
+        contract="MyCompany.Services.ICustomerService"
+        customAttribute="abc" />
+    </client>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+        Assert.Empty(result.Diagnostics);
+        Assert.NotNull(result.Configuration!.Client);
+
+        var endpoint = Assert.Single(result.Configuration.Client!.Endpoints);
+        Assert.Equal("CustomerClient", endpoint.Name);
+        Assert.Equal("MyCompany.Services.ICustomerService", endpoint.Contract);
+        Assert.Equal("abc", endpoint.Attributes["customAttribute"]);
+    }
+
+    [Fact]
+    public void Read_WhenClientContainsUnknownChild_PreservesRawChild()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <client>
+      <customClientChild value="abc" />
+    </client>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+        Assert.Empty(result.Diagnostics);
+        Assert.NotNull(result.Configuration!.Client);
+        Assert.Empty(result.Configuration.Client!.Endpoints);
+
+        var customClientChild = Assert.Single(result.Configuration.Client.RawElement.Children, child => child.Name == "customClientChild");
+        Assert.Equal("abc", customClientChild.Attributes["value"]);
+        Assert.False(customClientChild.IsKnownElement);
+    }
+
     private string WriteConfig(string xml)
     {
         var filePath = Path.Combine(_tempDirectory, $"{Guid.NewGuid():N}.config");
@@ -1093,5 +1350,3 @@ public sealed class LegacyWcfConfigurationReaderTests : IDisposable
         return filePath;
     }
 }
-
-

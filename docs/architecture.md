@@ -134,6 +134,9 @@ src/
     ├── LegacyWcfBehavior.cs
     ├── LegacyWcfBehaviorCollection.cs
     ├── LegacyWcfBehaviors.cs
+    ├── LegacyWcfClient.cs
+    ├── LegacyWcfClientEndpoint.cs
+    ├── LegacyWcfClientEndpoints.cs
     ├── LegacyWcfService.cs
     ├── LegacyWcfServiceEndpoint.cs
     ├── LegacyWcfServiceEndpoints.cs
@@ -365,7 +368,7 @@ Typed parsing should be built from `LegacyWcfElement` rather than directly from 
 src/LegacyWcf.Configuration/Internal/LegacyWcfTypedModelBuilder.cs
 ```
 
-The reader flow becomes:
+The Stage 1 reader flow became:
 
 ```text
 File path
@@ -376,6 +379,8 @@ File path
   -> build typed services and endpoints from the raw tree
   -> return LegacyWcfConfiguration with RawSystemServiceModel and Services
 ```
+
+The current Phase 2 Stage 5 reader flow keeps that raw-first approach and then builds typed services, bindings, behaviours, and client endpoint models from the preserved raw tree before returning `LegacyWcfConfiguration`.
 
 Every typed object should expose its raw element:
 
@@ -531,6 +536,53 @@ behavior / behaviour
 Unknown behaviour groups remain preserved in the raw tree but should not be surfaced through Stage 4 typed behaviour collections. Unknown child elements inside a behaviour should remain preserved through `behavior.RawElement.Children`.
 
 Stage 4 does not add client endpoints, serviceHostingEnvironment, lookup helpers, validation diagnostics, CoreWCF mapping, code generation, or CLI tooling.
+
+### Phase 2 Stage 5 typed client endpoint model boundary
+
+The fifth typed-model slice is implemented and adds WCF client endpoint support only. It remains additive on top of the preserved raw model and should not validate endpoint references to binding or behaviour configuration.
+
+Stage 5 public API includes:
+
+```text
+LegacyWcfClient
+LegacyWcfClientEndpoint
+LegacyWcfClientEndpoints
+LegacyWcfConfiguration.Client
+```
+
+`LegacyWcfClient` exposes:
+
+```csharp
+public sealed class LegacyWcfClient
+{
+    public LegacyWcfClientEndpoints Endpoints { get; }
+    public LegacyWcfElement RawElement { get; }
+}
+```
+
+`LegacyWcfClientEndpoint` exposes:
+
+```csharp
+public sealed class LegacyWcfClientEndpoint
+{
+    public string? Name { get; }
+    public string? Address { get; }
+    public string? Binding { get; }
+    public string? BindingConfiguration { get; }
+    public string? Contract { get; }
+    public string? BehaviorConfiguration { get; }
+    public IReadOnlyDictionary<string, string> Attributes { get; }
+    public LegacyWcfElement RawElement { get; }
+}
+```
+
+`LegacyWcfClientEndpoints` is a typed enumerable collection with `Count`, indexer support, `foreach`, LINQ support through `IEnumerable`/`IReadOnlyList`, and an `Empty` static instance. It should not add `Find(...)` or `GetRequired(...)` in Stage 5.
+
+`LegacyWcfConfiguration.Client` should be `null` when the source `<system.serviceModel>` has no direct `<client>` child. If `<client>` exists but has no direct `<endpoint>` children, `Client` should be non-null and `Client.Endpoints.Count` should be `0`.
+
+Stage 5 parsing is built from `LegacyWcfElement` in `LegacyWcfTypedModelBuilder`. It should read direct `<endpoint>` children under `<client>`, preserve source order, preserve missing optional attributes as `null` typed values, preserve all endpoint attributes through `Attributes`, and retain the raw endpoint element through `RawElement`. Unknown child elements under `<client>` remain preserved through `config.Client.RawElement.Children` but should not be surfaced as typed endpoints.
+
+Stage 5 does not add serviceHostingEnvironment, lookup helpers, validation diagnostics, CoreWCF mapping, code generation, or CLI tooling.
 
 ## Typed collections
 

@@ -2,7 +2,7 @@
 
 This document shows how LegacyWcf.Configuration is intended to be used by application developers.
 
-Phase 1 raw-reader APIs are implemented. Phase 2 Stage 1 typed service and endpoint APIs are implemented. Phase 2 Stage 2 typed service host, host base address, and host timeout APIs are implemented. Phase 2 Stage 3 initial typed binding APIs are implemented. Phase 2 Stage 4 initial typed behaviour APIs are implemented. Client endpoint, validation, and lookup examples later in this document describe the intended developer experience for later phases.
+Phase 1 raw-reader APIs are implemented. Phase 2 Stage 1 typed service and endpoint APIs are implemented. Phase 2 Stage 2 typed service host, host base address, and host timeout APIs are implemented. Phase 2 Stage 3 initial typed binding APIs are implemented. Phase 2 Stage 4 initial typed behaviour APIs are implemented. Phase 2 Stage 5 typed client endpoint APIs are implemented. Validation and lookup examples describe the intended developer experience for later phases.
 
 ## Install
 
@@ -105,11 +105,11 @@ Future diagnostics may include:
 - references to missing binding configurations
 - references to missing behaviour configurations
 
-## Phase 2 Stage 4 typed service, endpoint, host, binding, and behaviour usage
+## Phase 2 Stage 5 typed service, endpoint, host, binding, behaviour, and client endpoint usage
 
-The following APIs are implemented. The current typed model includes services, service endpoints, service hosts, host base addresses, host timeouts, initial typed binding collections, initial typed behaviour collections, typed enumerable collections, and raw XML fallback from those typed objects.
+The following APIs are implemented. The current typed model includes services, service endpoints, service hosts, host base addresses, host timeouts, initial typed binding collections, initial typed behaviour collections, typed client endpoints, typed enumerable collections, and raw XML fallback from those typed objects.
 
-Stage 4 does not include `Find(...)`, `GetRequired(...)`, endpoint lookup helpers, binding lookup helpers, behaviour lookup helpers, client endpoints, validation diagnostics, CoreWCF mapping, code generation, or CLI tooling. Targeted lookup remains a later retrieval API concern.
+Stage 5 does not include `Find(...)`, `GetRequired(...)`, endpoint lookup helpers, binding lookup helpers, behaviour lookup helpers, client endpoint lookup helpers, validation diagnostics, CoreWCF mapping, code generation, CLI tooling, or `serviceHostingEnvironment`. Targeted lookup remains a later retrieval API concern.
 
 ## Enumerate services
 
@@ -353,7 +353,7 @@ If `<behaviors>` or `<behaviours>` is missing, `config.Behaviors` should still b
 
 Lookup helpers such as `Find(...)` and `GetRequired(...)` are planned for a later retrieval API phase, not Stage 4.
 
-## Read client endpoints
+## Phase 2 Stage 5 usage: read client endpoints
 
 Legacy applications may contain WCF client configuration:
 
@@ -364,22 +364,38 @@ Legacy applications may contain WCF client configuration:
     address="http://localhost:8080/CustomerService"
     binding="basicHttpBinding"
     bindingConfiguration="CustomerBinding"
-    contract="MyCompany.Services.ICustomerService" />
+    contract="MyCompany.Services.ICustomerService"
+    behaviorConfiguration="CustomerEndpointBehavior" />
 </client>
 ```
 
-Intended usage:
+Phase 2 Stage 5 exposes this through `config.Client` and a typed endpoint collection. `config.Client` should be `null` when `<client>` is missing. If `<client>` exists but contains no endpoint children, `config.Client` should be non-null and `config.Client.Endpoints.Count` should be `0`.
+
+Usage:
 
 ```csharp
-foreach (var endpoint in config.Client?.Endpoints ?? [])
+if (config.Client is not null)
 {
-    Console.WriteLine(endpoint.Name);
-    Console.WriteLine(endpoint.Address);
-    Console.WriteLine(endpoint.Binding);
-    Console.WriteLine(endpoint.BindingConfiguration);
-    Console.WriteLine(endpoint.Contract);
+    foreach (var endpoint in config.Client.Endpoints)
+    {
+        Console.WriteLine(endpoint.Name);
+        Console.WriteLine(endpoint.Address);
+        Console.WriteLine(endpoint.Binding);
+        Console.WriteLine(endpoint.BindingConfiguration);
+        Console.WriteLine(endpoint.Contract);
+        Console.WriteLine(endpoint.BehaviorConfiguration);
+
+        foreach (var attribute in endpoint.Attributes)
+        {
+            Console.WriteLine($"{attribute.Key}: {attribute.Value}");
+        }
+
+        Console.WriteLine(endpoint.RawElement.RawXml);
+    }
 }
 ```
+
+The Stage 5 client endpoint model preserves all endpoint attributes through `endpoint.Attributes`, including unknown attributes. Missing optional attributes should produce `null` typed properties rather than a read failure. Unknown child elements under `<client>` should remain available through `config.Client.RawElement.Children` but should not be modelled as typed client endpoints in Stage 5.
 
 ## Access raw XML fallback
 

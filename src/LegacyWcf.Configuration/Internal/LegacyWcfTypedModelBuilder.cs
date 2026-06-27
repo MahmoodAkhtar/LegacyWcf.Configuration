@@ -26,6 +26,34 @@ internal static class LegacyWcfTypedModelBuilder
     }
 
 
+
+
+    public static LegacyWcfClient? BuildClient(LegacyWcfElement rawSystemServiceModel)
+    {
+        if (rawSystemServiceModel is null)
+        {
+            throw new ArgumentNullException(nameof(rawSystemServiceModel));
+        }
+
+        var clientElement = rawSystemServiceModel.Children
+            .FirstOrDefault(child => IsNamed(child, "client"));
+
+        if (clientElement is null)
+        {
+            return null;
+        }
+
+        var endpoints = clientElement.Children
+            .Where(child => IsNamed(child, "endpoint"))
+            .Select(BuildClientEndpoint)
+            .ToList();
+
+        return new LegacyWcfClient(
+            endpoints: endpoints.Count == 0 ? LegacyWcfClientEndpoints.Empty : new LegacyWcfClientEndpoints(endpoints),
+            rawElement: clientElement);
+    }
+
+
     public static LegacyWcfBindings BuildBindings(LegacyWcfElement rawSystemServiceModel)
     {
         if (rawSystemServiceModel is null)
@@ -200,6 +228,21 @@ internal static class LegacyWcfTypedModelBuilder
             rawElement: endpointElement);
     }
 
+
+    private static LegacyWcfClientEndpoint BuildClientEndpoint(LegacyWcfElement endpointElement)
+    {
+        return new LegacyWcfClientEndpoint(
+            name: GetAttributeOrNull(endpointElement, "name"),
+            address: GetAttributeOrNull(endpointElement, "address"),
+            binding: GetAttributeOrNull(endpointElement, "binding"),
+            bindingConfiguration: GetAttributeOrNull(endpointElement, "bindingConfiguration"),
+            contract: GetAttributeOrNull(endpointElement, "contract"),
+            behaviorConfiguration: GetAttributeOrNull(endpointElement, "behaviorConfiguration"),
+            attributes: endpointElement.Attributes,
+            rawElement: endpointElement);
+    }
+
+
     private static string GetAttributeOrDefault(LegacyWcfElement element, string name, string defaultValue)
     {
         return element.Attributes.TryGetValue(name, out var value)
@@ -219,5 +262,3 @@ internal static class LegacyWcfTypedModelBuilder
         return string.Equals(element.Name, name, StringComparison.OrdinalIgnoreCase);
     }
 }
-
-

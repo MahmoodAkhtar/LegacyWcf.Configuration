@@ -353,6 +353,8 @@ LegacyWcfServiceEndpoints
 
 **Phase 2 Stage 4: Initial typed behaviour support is implemented.**
 
+**Phase 2 Stage 5: Typed client endpoint support is implemented.**
+
 The current code exposes typed service host configuration through:
 
 ```text
@@ -388,6 +390,9 @@ src/LegacyWcf.Configuration/
 ├── LegacyWcfBehavior.cs
 ├── LegacyWcfBehaviorCollection.cs
 ├── LegacyWcfBehaviors.cs
+├── LegacyWcfClient.cs
+├── LegacyWcfClientEndpoint.cs
+├── LegacyWcfClientEndpoints.cs
 ├── LegacyWcfService.cs
 ├── LegacyWcfServiceEndpoint.cs
 ├── LegacyWcfServiceEndpoints.cs
@@ -443,95 +448,103 @@ Current tests cover:
 - unnamed bindings are preserved in typed binding collections
 - unknown binding child preservation
 - unknown binding groups remain raw-only
+- typed client endpoint parsing
+- client endpoint behaviour configuration parsing
+- multiple client endpoints preserved in source order
+- missing `<client>` produces `config.Client == null`
+- empty `<client>` produces an empty typed endpoint collection
+- missing optional client endpoint attributes are preserved as `null` typed values
+- unknown client endpoint attributes are preserved through `endpoint.Attributes`
+- unknown client child elements remain raw-only
 
 Current test status:
 
-- latest provided test run after Stage 4 implementation could not be executed in this environment because the .NET SDK is unavailable. The Stage 3 baseline was 26 total, 26 passed, 0 failed, 0 skipped; Stage 4 adds 8 reader tests.
+- latest provided full test run after Phase 2 Stage 5: 42 total, 42 passed, 0 failed, 0 skipped.
 
 Future AI implementation chats should preserve this boundary: raw XML preservation first, typed parsing only as additive views over the raw tree.
 
 ## Current next implementation slice
 
-The latest implementation step is **Phase 2 Stage 4: initial typed behaviours**.
+The next implementation step is typed `serviceHostingEnvironment` support.
 
-Stage 4 adds initial typed behaviour support only:
+## Completed Phase 2 Stage 5 slice
 
-- `LegacyWcfBehavior`
-- `LegacyWcfBehaviorCollection`
-- `LegacyWcfBehaviors`
-- `LegacyWcfConfiguration.Behaviors`
-- typed service behaviours through `config.Behaviors.ServiceBehaviors`
-- typed endpoint behaviours through `config.Behaviors.EndpointBehaviors`
-- parsing from the preserved raw `LegacyWcfElement` tree
-- raw XML preservation for every typed behaviour
+**Phase 2 Stage 5: typed client endpoints is implemented.**
 
-Required Stage 4 behaviour model shape:
+Stage 5 adds typed support for WCF client endpoints only:
+
+- `LegacyWcfClient`
+- `LegacyWcfClientEndpoint`
+- `LegacyWcfClientEndpoints`
+- `LegacyWcfConfiguration.Client`
+- parsing direct `<client>/<endpoint>` children from the preserved raw `LegacyWcfElement` tree
+- raw XML preservation for the `<client>` element and every typed client endpoint
+
+Required Stage 5 public model shape:
 
 ```text
-LegacyWcfBehavior
-- string BehaviorType
+LegacyWcfClient
+- LegacyWcfClientEndpoints Endpoints
+- LegacyWcfElement RawElement
+
+LegacyWcfClientEndpoint
 - string? Name
+- string? Address
+- string? Binding
+- string? BindingConfiguration
+- string? Contract
+- string? BehaviorConfiguration
 - IReadOnlyDictionary<string, string> Attributes
 - LegacyWcfElement RawElement
 
-LegacyWcfBehaviorCollection
+LegacyWcfClientEndpoints
 - Count
 - indexer
 - foreach support
 - LINQ support through IEnumerable/IReadOnlyList
 - Empty static instance
 
-LegacyWcfBehaviors
-- LegacyWcfBehaviorCollection ServiceBehaviors
-- LegacyWcfBehaviorCollection EndpointBehaviors
-- Empty static instance
+LegacyWcfConfiguration
+- LegacyWcfClient? Client
 ```
 
-`BehaviorType` should use these exact normalized singular values:
+Stage 5 parsing rules:
 
-```text
-serviceBehavior
-endpointBehavior
-```
+- if `<client>` is missing, `config.Client` should be `null`
+- if `<client>` exists with no direct `<endpoint>` children, `config.Client` should be non-null and `config.Client.Endpoints.Count` should be `0`
+- client endpoints should preserve source XML order
+- missing optional endpoint attributes should become `null` typed property values
+- all source endpoint attributes, including unknown attributes, should be preserved through `endpoint.Attributes`
+- every typed client endpoint should retain its source `LegacyWcfElement` through `RawElement`
+- unknown child elements under `<client>` should remain available through `config.Client.RawElement.Children` but should not be typed in Stage 5
 
-Stage 4 should support:
+Implementation guidance:
 
-- `<behaviors>/<serviceBehaviors>/<behavior>`
-- `<behaviors>/<endpointBehaviors>/<behavior>`
-- `<behaviours>/<serviceBehaviours>/<behaviour>`
-- `<behaviours>/<endpointBehaviours>/<behaviour>`
+- extend `src/LegacyWcf.Configuration/Internal/LegacyWcfTypedModelBuilder.cs`
+- build typed client endpoints from the preserved `LegacyWcfElement` tree only
+- do not parse client endpoints directly from `XDocument` or `XElement`
+- keep public API files directly under `src/LegacyWcf.Configuration/`
+- keep implementation-only helpers under `src/LegacyWcf.Configuration/Internal/`
 
-The public API should keep American spelling:
+Stage 5 does not implement:
 
-```text
-LegacyWcfBehavior
-LegacyWcfBehaviorCollection
-LegacyWcfBehaviors
-ServiceBehaviors
-EndpointBehaviors
-```
-
-Stage 4 should preserve unnamed behaviours with `Name == null`, preserve all behaviour attributes through `Attributes`, preserve unknown behaviour child elements through `RawElement.Children`, and preserve unknown behaviour groups in `RawSystemServiceModel` without creating typed models for them.
-
-Stage 4 does not implement:
-
-- client endpoints
 - serviceHostingEnvironment
 - `Find(...)`
 - `GetRequired(...)`
 - service lookup helpers
-- endpoint lookup helpers
+- service endpoint lookup helpers
+- client endpoint lookup helpers
 - binding lookup helpers
 - behaviour lookup helpers
-- validation diagnostics for duplicate behaviours
-- validation diagnostics for services referencing missing behaviours
-- validation diagnostics for endpoints referencing missing behaviours
+- validation diagnostics for duplicate client endpoints
+- validation diagnostics for client endpoints referencing missing bindings
+- validation diagnostics for client endpoints referencing missing behaviours
+- validation diagnostics for duplicate bindings or behaviours
 - CoreWCF mapping
 - code generation
 - CLI tooling
 
 Phase 2 should still avoid CoreWCF mapping, code generation, and CLI tooling.
-
 
 ## Raw model
 
@@ -607,7 +620,7 @@ LegacyWcfHostTimeouts
 - LegacyWcfElement RawElement
 ```
 
-`LegacyWcfConfiguration` currently exposes `LegacyWcfServices Services`, defaulting to an empty collection when no `<services>` element exists. Stage 3 adds `LegacyWcfBindings Bindings`, defaulting to `LegacyWcfBindings.Empty` when no `<bindings>` element exists. Stage 4 should add `LegacyWcfBehaviors Behaviors`, defaulting to `LegacyWcfBehaviors.Empty` when no `<behaviors>` or `<behaviours>` element exists.
+`LegacyWcfConfiguration` currently exposes `LegacyWcfServices Services`, defaulting to an empty collection when no `<services>` element exists. It also exposes `LegacyWcfBindings Bindings`, defaulting to `LegacyWcfBindings.Empty` when no `<bindings>` element exists, `LegacyWcfBehaviors Behaviors`, defaulting to `LegacyWcfBehaviors.Empty` when no `<behaviors>` or `<behaviours>` element exists, and `LegacyWcfClient? Client`, which remains `null` when no `<client>` element exists.
 
 A possible shape:
 

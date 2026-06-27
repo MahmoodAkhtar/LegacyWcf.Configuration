@@ -217,6 +217,43 @@ Unknown behaviour groups are preserved in `config.RawSystemServiceModel` but sho
 
 Stage 4 does not emit diagnostics for unnamed behaviours, unknown behaviour groups, unknown behaviour child elements, duplicate behaviours, or services/endpoints referencing missing behaviour configurations. Validation belongs to a later phase.
 
+## Phase 2 Stage 5 typed client endpoint model contract
+
+Phase 2 Stage 5 is implemented and adds typed models for WCF client endpoints only. It remains additive on top of the preserved raw model and must not weaken raw XML preservation.
+
+Stage 5 adds:
+
+- `config.Client`
+- `LegacyWcfClient`
+- `LegacyWcfClientEndpoint`
+- `LegacyWcfClientEndpoints`
+
+`LegacyWcfClient` exposes:
+
+```text
+Endpoints
+RawElement
+```
+
+If `<client>` is missing, `config.Client` should be `null`. If `<client>` exists but has no direct `<endpoint>` children, `config.Client` should be non-null, `config.Client.Endpoints.Count` should be `0`, and `config.Client.RawElement` should preserve the source `<client>` element.
+
+`LegacyWcfClientEndpoint` exposes:
+
+```text
+Name
+Address
+Binding
+BindingConfiguration
+Contract
+BehaviorConfiguration
+Attributes
+RawElement
+```
+
+The typed properties should come from the same-named source attributes, except `BindingConfiguration` should come from `bindingConfiguration` and `BehaviorConfiguration` should come from `behaviorConfiguration`. Missing optional attributes should produce `null` typed property values. `Attributes` should preserve all source endpoint attributes, including unknown attributes. `RawElement` should point to the preserved raw `<endpoint>` element.
+
+Stage 5 parses only direct `<client>/<endpoint>` children. Unknown child elements under `<client>` should remain preserved through `config.Client.RawElement.Children` but should not be typed in Stage 5. Stage 5 should not emit diagnostics for missing optional endpoint attributes, unknown endpoint attributes, unknown client child elements, duplicate client endpoints, or missing binding/behaviour references. Validation belongs to a later phase.
+
 ## Scenario 1: Simple service with endpoint
 
 Stage 1 typed model target: yes.
@@ -968,6 +1005,8 @@ No diagnostics expected in Stage 4.
 
 ## Scenario 8: Client endpoint
 
+Stage 5 typed model target: yes.
+
 ### Input XML
 
 ```xml
@@ -996,18 +1035,268 @@ endpoint.Address == "http://localhost:8080/CustomerService"
 endpoint.Binding == "basicHttpBinding"
 endpoint.BindingConfiguration == "CustomerBinding"
 endpoint.Contract == "MyCompany.Services.ICustomerService"
+endpoint.BehaviorConfiguration == null
+endpoint.Attributes["name"] == "CustomerClient"
+endpoint.Attributes["address"] == "http://localhost:8080/CustomerService"
+endpoint.Attributes["binding"] == "basicHttpBinding"
+endpoint.Attributes["bindingConfiguration"] == "CustomerBinding"
+endpoint.Attributes["contract"] == "MyCompany.Services.ICustomerService"
+endpoint.RawElement is not null
+endpoint.RawElement.Name == "endpoint"
 ```
 
 ### Raw XML preservation
 
 ```text
 Raw XML for <client> and <endpoint> is preserved.
+config.Client.RawElement.Name == "client"
+endpoint.RawElement.Name == "endpoint"
 ```
 
 ### Expected diagnostics
 
 ```text
-No diagnostics expected.
+No diagnostics expected in Stage 5.
+```
+
+## Scenario 8a: Client endpoint with behaviour configuration
+
+Stage 5 typed model target: yes.
+
+### Input XML
+
+```xml
+<configuration>
+  <system.serviceModel>
+    <client>
+      <endpoint
+        name="CustomerClient"
+        address="http://localhost:8080/CustomerService"
+        binding="basicHttpBinding"
+        bindingConfiguration="CustomerBinding"
+        contract="MyCompany.Services.ICustomerService"
+        behaviorConfiguration="CustomerEndpointBehavior" />
+    </client>
+  </system.serviceModel>
+</configuration>
+```
+
+### Expected typed model
+
+```text
+config.Client is not null
+config.Client.Endpoints.Count == 1
+endpoint.BehaviorConfiguration == "CustomerEndpointBehavior"
+endpoint.Attributes["behaviorConfiguration"] == "CustomerEndpointBehavior"
+```
+
+### Raw XML preservation
+
+```text
+The endpoint RawElement is preserved.
+```
+
+### Expected diagnostics
+
+```text
+No diagnostics expected in Stage 5.
+```
+
+## Scenario 8b: Multiple client endpoints preserve order
+
+Stage 5 typed model target: yes.
+
+### Input XML
+
+```xml
+<configuration>
+  <system.serviceModel>
+    <client>
+      <endpoint
+        name="CustomerClient"
+        address="http://localhost:8080/CustomerService"
+        binding="basicHttpBinding"
+        bindingConfiguration="CustomerBinding"
+        contract="MyCompany.Services.ICustomerService" />
+      <endpoint
+        name="OrderClient"
+        address="http://localhost:8080/OrderService"
+        binding="wsHttpBinding"
+        bindingConfiguration="OrderBinding"
+        contract="MyCompany.Services.IOrderService" />
+    </client>
+  </system.serviceModel>
+</configuration>
+```
+
+### Expected typed model
+
+```text
+config.Client is not null
+config.Client.Endpoints.Count == 2
+config.Client.Endpoints[0].Name == "CustomerClient"
+config.Client.Endpoints[1].Name == "OrderClient"
+config.Client.Endpoints[0].RawElement is not config.Client.Endpoints[1].RawElement
+```
+
+### Raw XML preservation
+
+```text
+Both endpoint RawElement values are preserved separately and in source order.
+```
+
+### Expected diagnostics
+
+```text
+No diagnostics expected in Stage 5.
+```
+
+## Scenario 8c: Missing client element
+
+Stage 5 typed model target: yes.
+
+### Input XML
+
+```xml
+<configuration>
+  <system.serviceModel>
+  </system.serviceModel>
+</configuration>
+```
+
+### Expected typed model
+
+```text
+config.Client == null
+```
+
+### Raw XML preservation
+
+```text
+config.RawSystemServiceModel is preserved.
+```
+
+### Expected diagnostics
+
+```text
+No diagnostics expected in Stage 5.
+```
+
+## Scenario 8d: Client exists with no endpoints
+
+Stage 5 typed model target: yes.
+
+### Input XML
+
+```xml
+<configuration>
+  <system.serviceModel>
+    <client>
+    </client>
+  </system.serviceModel>
+</configuration>
+```
+
+### Expected typed model
+
+```text
+config.Client is not null
+config.Client.Endpoints.Count == 0
+config.Client.RawElement.Name == "client"
+```
+
+### Raw XML preservation
+
+```text
+The raw <client> element is preserved.
+```
+
+### Expected diagnostics
+
+```text
+No diagnostics expected in Stage 5.
+```
+
+## Scenario 8e: Client endpoint with missing optional attributes and unknown attributes
+
+Stage 5 typed model target: yes.
+
+### Input XML
+
+```xml
+<configuration>
+  <system.serviceModel>
+    <client>
+      <endpoint
+        contract="MyCompany.Services.ICustomerService"
+        customAttribute="abc" />
+    </client>
+  </system.serviceModel>
+</configuration>
+```
+
+### Expected typed model
+
+```text
+config.Client is not null
+config.Client.Endpoints.Count == 1
+endpoint.Name == null
+endpoint.Address == null
+endpoint.Binding == null
+endpoint.BindingConfiguration == null
+endpoint.Contract == "MyCompany.Services.ICustomerService"
+endpoint.BehaviorConfiguration == null
+endpoint.Attributes["contract"] == "MyCompany.Services.ICustomerService"
+endpoint.Attributes["customAttribute"] == "abc"
+```
+
+### Raw XML preservation
+
+```text
+The endpoint RawElement is preserved.
+Unknown attributes remain available through endpoint.Attributes.
+```
+
+### Expected diagnostics
+
+```text
+No diagnostics expected in Stage 5.
+```
+
+## Scenario 8f: Unknown client child is raw-only
+
+Stage 5 typed model target: yes for raw preservation, no for typed modelling.
+
+### Input XML
+
+```xml
+<configuration>
+  <system.serviceModel>
+    <client>
+      <customClientChild value="abc" />
+    </client>
+  </system.serviceModel>
+</configuration>
+```
+
+### Expected typed model
+
+```text
+config.Client is not null
+config.Client.Endpoints.Count == 0
+config.Client.RawElement.Children contains customClientChild
+```
+
+### Raw XML preservation
+
+```text
+The unknown <customClientChild> element is preserved under config.Client.RawElement.Children.
+```
+
+### Expected diagnostics
+
+```text
+No diagnostics expected in Stage 5.
 ```
 
 ## Scenario 9: serviceHostingEnvironment
