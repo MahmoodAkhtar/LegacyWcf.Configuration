@@ -10,8 +10,9 @@ namespace LegacyWcf.Configuration;
 /// The raw <c>&lt;system.serviceModel&gt;</c> XML tree remains the source of truth.
 /// Phase 2 Stage 1 adds typed services and service endpoints, Phase 2 Stage 2 adds
 /// typed service host and host base address support, Phase 2 Stage 3 adds initial
-/// typed binding support, Phase 2 Stage 4 adds initial typed behaviour support, and
-/// Phase 2 Stage 5 adds typed client endpoint support on top of that preserved raw tree.
+/// typed binding support, Phase 2 Stage 4 adds initial typed behaviour support,
+/// Phase 2 Stage 5 adds typed client endpoint support, and Phase 2 Stage 6 adds
+/// typed service hosting environment support on top of that preserved raw tree.
 /// </remarks>
 public sealed class LegacyWcfConfiguration
 {
@@ -38,13 +39,18 @@ public sealed class LegacyWcfConfiguration
     /// Optional typed WCF client configuration. This remains <see langword="null"/> when no
     /// source <c>&lt;client&gt;</c> element exists.
     /// </param>
+    /// <param name="serviceHostingEnvironment">
+    /// Optional typed WCF service hosting environment configuration. This remains
+    /// <see langword="null"/> when no source <c>&lt;serviceHostingEnvironment&gt;</c> element exists.
+    /// </param>
     public LegacyWcfConfiguration(
         LegacyWcfElement rawSystemServiceModel,
         IReadOnlyList<LegacyWcfDiagnostic>? diagnostics = null,
         LegacyWcfServices? services = null,
         LegacyWcfBindings? bindings = null,
         LegacyWcfBehaviors? behaviors = null,
-        LegacyWcfClient? client = null)
+        LegacyWcfClient? client = null,
+        LegacyWcfServiceHostingEnvironment? serviceHostingEnvironment = null)
     {
         RawSystemServiceModel = rawSystemServiceModel ?? throw new ArgumentNullException(nameof(rawSystemServiceModel));
         Diagnostics = diagnostics ?? Array.Empty<LegacyWcfDiagnostic>();
@@ -52,6 +58,7 @@ public sealed class LegacyWcfConfiguration
         Bindings = bindings ?? LegacyWcfBindings.Empty;
         Behaviors = behaviors ?? LegacyWcfBehaviors.Empty;
         Client = client;
+        ServiceHostingEnvironment = serviceHostingEnvironment;
     }
 
     /// <summary>
@@ -95,6 +102,17 @@ public sealed class LegacyWcfConfiguration
     /// and cross-reference validation are planned for later phases.
     /// </remarks>
     public LegacyWcfClient? Client { get; }
+
+    /// <summary>
+    /// Gets the typed WCF service hosting environment declared under
+    /// <c>&lt;serviceHostingEnvironment&gt;</c>.
+    /// </summary>
+    /// <remarks>
+    /// This value is <see langword="null"/> when no source
+    /// <c>&lt;serviceHostingEnvironment&gt;</c> element exists. Stage 6 preserves attribute
+    /// values as strings and does not validate boolean values or duplicate elements.
+    /// </remarks>
+    public LegacyWcfServiceHostingEnvironment? ServiceHostingEnvironment { get; }
 
     /// <summary>
     /// Gets the preserved raw <c>&lt;system.serviceModel&gt;</c> element.

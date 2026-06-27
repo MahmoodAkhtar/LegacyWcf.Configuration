@@ -167,7 +167,7 @@ Attributes
 RawElement
 ```
 
-`BindingType` should contain the parent binding group name, such as `basicHttpBinding`, `wsHttpBinding`, `netTcpBinding`, or `customBinding`. `Name` should come from the `<binding name="..." />` attribute and should be `null` when the attribute is missing. `Attributes` should preserve all attributes from the `<binding>` element, including `name`. `RawElement` should point to the preserved raw `<binding>` element.
+`BindingType` should contain the parent binding group name, such as `basicHttpBinding`, `wsHttpBinding`, `netTcpBinding`, or `customBinding`. `Name` should come from the `<binding name="..." />` attribute and should be `null` when the attribute is missing. `Attributes` preserves all attributes from the `<binding>` element, including `name`. `RawElement` points to the preserved raw `<binding>` element.
 
 If `<bindings>` is missing, `config.Bindings` should be non-null and all known binding collections should be empty. If a known binding group exists but has no direct `<binding>` children, the corresponding typed collection should be empty.
 
@@ -198,7 +198,7 @@ Attributes
 RawElement
 ```
 
-`BehaviorType` uses the normalized singular values `serviceBehavior` and `endpointBehavior`. `Name` should come from the `<behavior name="..." />` or `<behaviour name="..." />` attribute and should be `null` when the attribute is missing. `Attributes` should preserve all attributes from the source behaviour element, including `name`. `RawElement` should point to the preserved raw behaviour element.
+`BehaviorType` uses the normalized singular values `serviceBehavior` and `endpointBehavior`. `Name` should come from the `<behavior name="..." />` or `<behaviour name="..." />` attribute and should be `null` when the attribute is missing. `Attributes` preserves all attributes from the source behaviour element, including `name`. `RawElement` points to the preserved raw behaviour element.
 
 If `<behaviors>` or `<behaviours>` is missing, `config.Behaviors` is non-null and both known behaviour collections should be empty. If a known behaviour group exists but has no direct behaviour children, the corresponding typed collection should be empty.
 
@@ -250,9 +250,34 @@ Attributes
 RawElement
 ```
 
-The typed properties should come from the same-named source attributes, except `BindingConfiguration` should come from `bindingConfiguration` and `BehaviorConfiguration` should come from `behaviorConfiguration`. Missing optional attributes should produce `null` typed property values. `Attributes` should preserve all source endpoint attributes, including unknown attributes. `RawElement` should point to the preserved raw `<endpoint>` element.
+The typed properties should come from the same-named source attributes, except `BindingConfiguration` should come from `bindingConfiguration` and `BehaviorConfiguration` should come from `behaviorConfiguration`. Missing optional attributes produce `null` typed property values. `Attributes` preserves all source endpoint attributes, including unknown attributes. `RawElement` points to the preserved raw `<endpoint>` element.
 
 Stage 5 parses only direct `<client>/<endpoint>` children. Unknown child elements under `<client>` should remain preserved through `config.Client.RawElement.Children` but should not be typed in Stage 5. Stage 5 should not emit diagnostics for missing optional endpoint attributes, unknown endpoint attributes, unknown client child elements, duplicate client endpoints, or missing binding/behaviour references. Validation belongs to a later phase.
+
+
+## Phase 2 Stage 6 typed serviceHostingEnvironment model contract
+
+Phase 2 Stage 6 is implemented and adds typed support for WCF `serviceHostingEnvironment` only. It should remain additive on top of the preserved raw model and must not weaken raw XML preservation.
+
+Stage 6 adds:
+
+- `config.ServiceHostingEnvironment`
+- `LegacyWcfServiceHostingEnvironment`
+
+`LegacyWcfServiceHostingEnvironment` exposes:
+
+```text
+AspNetCompatibilityEnabled
+MultipleSiteBindingsEnabled
+Attributes
+RawElement
+```
+
+`AspNetCompatibilityEnabled` should come from the source `aspNetCompatibilityEnabled` attribute. `MultipleSiteBindingsEnabled` should come from the source `multipleSiteBindingsEnabled` attribute. Missing optional attributes produce `null` typed property values. `Attributes` preserves all source attributes, including unknown attributes. `RawElement` points to the preserved raw `<serviceHostingEnvironment>` element.
+
+Stage 6 parses only the first direct `<serviceHostingEnvironment>` child under `<system.serviceModel>`. If no direct `<serviceHostingEnvironment>` element exists, `config.ServiceHostingEnvironment` should be `null`. If more than one direct `<serviceHostingEnvironment>` element exists, Stage 6 parses the first direct element, preserves all elements in `RawSystemServiceModel`, and emit no duplicate diagnostic. Duplicate diagnostics belong to a later validation phase.
+
+Stage 6 does not parse boolean values into `bool`. Values remain strings exactly as they appear in XML. Stage 6 does not validate whether `aspNetCompatibilityEnabled` or `multipleSiteBindingsEnabled` values are valid boolean strings. Unknown attributes and unknown child elements are preserved and do not cause a read failure or diagnostic in Stage 6.
 
 ## Scenario 1: Simple service with endpoint
 
@@ -1301,6 +1326,8 @@ No diagnostics expected in Stage 5.
 
 ## Scenario 9: serviceHostingEnvironment
 
+Stage 6 typed model target: yes.
+
 ### Input XML
 
 ```xml
@@ -1319,20 +1346,197 @@ No diagnostics expected in Stage 5.
 config.ServiceHostingEnvironment is not null
 config.ServiceHostingEnvironment.AspNetCompatibilityEnabled == "true"
 config.ServiceHostingEnvironment.MultipleSiteBindingsEnabled == "true"
+config.ServiceHostingEnvironment.Attributes["aspNetCompatibilityEnabled"] == "true"
+config.ServiceHostingEnvironment.Attributes["multipleSiteBindingsEnabled"] == "true"
+config.ServiceHostingEnvironment.RawElement is not null
+config.ServiceHostingEnvironment.RawElement.Name == "serviceHostingEnvironment"
 ```
-
-The exact property types may evolve. The important point is that common attributes should be retrievable.
 
 ### Raw XML preservation
 
 ```text
 Raw XML for <serviceHostingEnvironment> is preserved.
+Unknown attributes and child elements remain available through the raw model.
 ```
 
 ### Expected diagnostics
 
 ```text
-No diagnostics expected.
+No diagnostics expected in Stage 6.
+```
+
+## Scenario 9a: serviceHostingEnvironment with only aspNetCompatibilityEnabled
+
+Stage 6 typed model target: yes.
+
+### Input XML
+
+```xml
+<configuration>
+  <system.serviceModel>
+    <serviceHostingEnvironment aspNetCompatibilityEnabled="false" />
+  </system.serviceModel>
+</configuration>
+```
+
+### Expected typed model
+
+```text
+config.ServiceHostingEnvironment is not null
+config.ServiceHostingEnvironment.AspNetCompatibilityEnabled == "false"
+config.ServiceHostingEnvironment.MultipleSiteBindingsEnabled == null
+config.ServiceHostingEnvironment.Attributes["aspNetCompatibilityEnabled"] == "false"
+```
+
+### Expected diagnostics
+
+```text
+No diagnostics expected in Stage 6.
+```
+
+## Scenario 9b: serviceHostingEnvironment with no attributes
+
+Stage 6 typed model target: yes.
+
+### Input XML
+
+```xml
+<configuration>
+  <system.serviceModel>
+    <serviceHostingEnvironment />
+  </system.serviceModel>
+</configuration>
+```
+
+### Expected typed model
+
+```text
+config.ServiceHostingEnvironment is not null
+config.ServiceHostingEnvironment.AspNetCompatibilityEnabled == null
+config.ServiceHostingEnvironment.MultipleSiteBindingsEnabled == null
+config.ServiceHostingEnvironment.Attributes.Count == 0
+config.ServiceHostingEnvironment.RawElement.Name == "serviceHostingEnvironment"
+```
+
+### Expected diagnostics
+
+```text
+No diagnostics expected in Stage 6.
+```
+
+## Scenario 9c: missing serviceHostingEnvironment
+
+Stage 6 typed model target: yes.
+
+### Input XML
+
+```xml
+<configuration>
+  <system.serviceModel>
+  </system.serviceModel>
+</configuration>
+```
+
+### Expected typed model
+
+```text
+config.ServiceHostingEnvironment == null
+```
+
+### Expected diagnostics
+
+```text
+No diagnostics expected in Stage 6.
+```
+
+## Scenario 9d: serviceHostingEnvironment with unknown attribute
+
+Stage 6 typed model target: yes.
+
+### Input XML
+
+```xml
+<configuration>
+  <system.serviceModel>
+    <serviceHostingEnvironment
+      aspNetCompatibilityEnabled="true"
+      customAttribute="abc" />
+  </system.serviceModel>
+</configuration>
+```
+
+### Expected typed model
+
+```text
+config.ServiceHostingEnvironment is not null
+config.ServiceHostingEnvironment.AspNetCompatibilityEnabled == "true"
+config.ServiceHostingEnvironment.Attributes["customAttribute"] == "abc"
+```
+
+### Expected diagnostics
+
+```text
+No diagnostics expected in Stage 6.
+```
+
+## Scenario 9e: serviceHostingEnvironment with unknown child
+
+Stage 6 typed model target: yes for raw preservation, no for typed child modelling.
+
+### Input XML
+
+```xml
+<configuration>
+  <system.serviceModel>
+    <serviceHostingEnvironment aspNetCompatibilityEnabled="true">
+      <customHostingChild value="abc" />
+    </serviceHostingEnvironment>
+  </system.serviceModel>
+</configuration>
+```
+
+### Expected typed model
+
+```text
+config.ServiceHostingEnvironment is not null
+config.ServiceHostingEnvironment.AspNetCompatibilityEnabled == "true"
+config.ServiceHostingEnvironment.RawElement.Children contains customHostingChild
+```
+
+### Expected diagnostics
+
+```text
+No diagnostics expected in Stage 6.
+```
+
+## Scenario 9f: duplicate serviceHostingEnvironment elements
+
+Stage 6 typed model target: yes for first direct element, yes for raw preservation of all elements.
+
+### Input XML
+
+```xml
+<configuration>
+  <system.serviceModel>
+    <serviceHostingEnvironment aspNetCompatibilityEnabled="true" />
+    <serviceHostingEnvironment aspNetCompatibilityEnabled="false" />
+  </system.serviceModel>
+</configuration>
+```
+
+### Expected typed model
+
+```text
+config.ServiceHostingEnvironment is not null
+config.ServiceHostingEnvironment.AspNetCompatibilityEnabled == "true"
+config.RawSystemServiceModel.Children contains both serviceHostingEnvironment elements
+```
+
+### Expected diagnostics
+
+```text
+No duplicate diagnostic expected in Stage 6.
+Duplicate diagnostics belong to a later validation phase.
 ```
 
 ## Scenario 10: Unknown custom element preserved

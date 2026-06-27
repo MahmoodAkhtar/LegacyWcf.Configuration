@@ -2,7 +2,7 @@
 
 This document shows how LegacyWcf.Configuration is intended to be used by application developers.
 
-Phase 1 raw-reader APIs are implemented. Phase 2 Stage 1 typed service and endpoint APIs are implemented. Phase 2 Stage 2 typed service host, host base address, and host timeout APIs are implemented. Phase 2 Stage 3 initial typed binding APIs are implemented. Phase 2 Stage 4 initial typed behaviour APIs are implemented. Phase 2 Stage 5 typed client endpoint APIs are implemented. Validation and lookup examples describe the intended developer experience for later phases.
+Phase 1 raw-reader APIs are implemented. Phase 2 Stage 1 typed service and endpoint APIs are implemented. Phase 2 Stage 2 typed service host, host base address, and host timeout APIs are implemented. Phase 2 Stage 3 initial typed binding APIs are implemented. Phase 2 Stage 4 initial typed behaviour APIs are implemented. Phase 2 Stage 5 typed client endpoint APIs are implemented. Phase 2 Stage 6 typed `serviceHostingEnvironment` APIs are implemented. Validation and lookup examples describe the intended developer experience for later phases.
 
 ## Install
 
@@ -105,11 +105,11 @@ Future diagnostics may include:
 - references to missing binding configurations
 - references to missing behaviour configurations
 
-## Phase 2 Stage 5 typed service, endpoint, host, binding, behaviour, and client endpoint usage
+## Phase 2 Stage 6 typed service, endpoint, host, binding, behaviour, client endpoint, and serviceHostingEnvironment usage
 
-The following APIs are implemented. The current typed model includes services, service endpoints, service hosts, host base addresses, host timeouts, initial typed binding collections, initial typed behaviour collections, typed client endpoints, typed enumerable collections, and raw XML fallback from those typed objects.
+The following APIs are implemented. The current typed model includes services, service endpoints, service hosts, host base addresses, host timeouts, initial typed binding collections, initial typed behaviour collections, typed client endpoints, typed enumerable collections, typed service hosting environment settings, and raw XML fallback from those typed objects.
 
-Stage 5 does not include `Find(...)`, `GetRequired(...)`, endpoint lookup helpers, binding lookup helpers, behaviour lookup helpers, client endpoint lookup helpers, validation diagnostics, CoreWCF mapping, code generation, CLI tooling, or `serviceHostingEnvironment`. Targeted lookup remains a later retrieval API concern.
+Stage 6 does not include `Find(...)`, `GetRequired(...)`, endpoint lookup helpers, binding lookup helpers, behaviour lookup helpers, client endpoint lookup helpers, validation diagnostics, CoreWCF mapping, code generation, or CLI tooling. Targeted lookup remains a later retrieval API concern.
 
 ## Enumerate services
 
@@ -396,6 +396,40 @@ if (config.Client is not null)
 ```
 
 The Stage 5 client endpoint model preserves all endpoint attributes through `endpoint.Attributes`, including unknown attributes. Missing optional attributes should produce `null` typed properties rather than a read failure. Unknown child elements under `<client>` should remain available through `config.Client.RawElement.Children` but should not be modelled as typed client endpoints in Stage 5.
+
+
+## Phase 2 Stage 6 usage: read serviceHostingEnvironment
+
+Phase 2 Stage 6 adds typed access to the first direct `<serviceHostingEnvironment>` element under `<system.serviceModel>`.
+
+Example source XML:
+
+```xml
+<serviceHostingEnvironment
+  aspNetCompatibilityEnabled="true"
+  multipleSiteBindingsEnabled="true" />
+```
+
+Usage:
+
+```csharp
+var hosting = config.ServiceHostingEnvironment;
+
+if (hosting is not null)
+{
+    Console.WriteLine(hosting.AspNetCompatibilityEnabled);
+    Console.WriteLine(hosting.MultipleSiteBindingsEnabled);
+
+    foreach (var attribute in hosting.Attributes)
+    {
+        Console.WriteLine($"{attribute.Key}: {attribute.Value}");
+    }
+
+    Console.WriteLine(hosting.RawElement.RawXml);
+}
+```
+
+`config.ServiceHostingEnvironment` should be `null` when no direct `<serviceHostingEnvironment>` element exists. Attribute values should be preserved as strings exactly as they appear in the source XML. Unknown attributes should remain available through `hosting.Attributes`, and unknown child elements should remain available through `hosting.RawElement.Children`. Stage 6 does not validate boolean values and does not emit diagnostics for unknown attributes, unknown child elements, or duplicate `serviceHostingEnvironment` elements.
 
 ## Access raw XML fallback
 

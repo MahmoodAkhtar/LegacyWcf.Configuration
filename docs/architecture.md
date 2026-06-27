@@ -137,6 +137,7 @@ src/
     ├── LegacyWcfClient.cs
     ├── LegacyWcfClientEndpoint.cs
     ├── LegacyWcfClientEndpoints.cs
+    ├── LegacyWcfServiceHostingEnvironment.cs
     ├── LegacyWcfService.cs
     ├── LegacyWcfServiceEndpoint.cs
     ├── LegacyWcfServiceEndpoints.cs
@@ -380,7 +381,7 @@ File path
   -> return LegacyWcfConfiguration with RawSystemServiceModel and Services
 ```
 
-The current Phase 2 Stage 5 reader flow keeps that raw-first approach and then builds typed services, bindings, behaviours, and client endpoint models from the preserved raw tree before returning `LegacyWcfConfiguration`.
+The current Phase 2 Stage 5 reader flow keeps that raw-first approach and then builds typed services, bindings, behaviours, and client endpoint models from the preserved raw tree before returning `LegacyWcfConfiguration`. Phase 2 Stage 6 extends this flow by building a typed `serviceHostingEnvironment` model from the preserved raw tree before constructing `LegacyWcfConfiguration`.
 
 Every typed object should expose its raw element:
 
@@ -583,6 +584,36 @@ public sealed class LegacyWcfClientEndpoint
 Stage 5 parsing is built from `LegacyWcfElement` in `LegacyWcfTypedModelBuilder`. It should read direct `<endpoint>` children under `<client>`, preserve source order, preserve missing optional attributes as `null` typed values, preserve all endpoint attributes through `Attributes`, and retain the raw endpoint element through `RawElement`. Unknown child elements under `<client>` remain preserved through `config.Client.RawElement.Children` but should not be surfaced as typed endpoints.
 
 Stage 5 does not add serviceHostingEnvironment, lookup helpers, validation diagnostics, CoreWCF mapping, code generation, or CLI tooling.
+
+
+### Phase 2 Stage 6 typed serviceHostingEnvironment model boundary
+
+The sixth typed-model slice is implemented and adds WCF `serviceHostingEnvironment` support only. It remains additive on top of the preserved raw model and should not validate values or emit duplicate diagnostics.
+
+Stage 6 public API includes:
+
+```text
+LegacyWcfServiceHostingEnvironment
+LegacyWcfConfiguration.ServiceHostingEnvironment
+```
+
+`LegacyWcfServiceHostingEnvironment` should expose:
+
+```csharp
+public sealed class LegacyWcfServiceHostingEnvironment
+{
+    public string? AspNetCompatibilityEnabled { get; }
+    public string? MultipleSiteBindingsEnabled { get; }
+    public IReadOnlyDictionary<string, string> Attributes { get; }
+    public LegacyWcfElement RawElement { get; }
+}
+```
+
+`LegacyWcfConfiguration.ServiceHostingEnvironment` is `null` when the source `<system.serviceModel>` element has no direct `<serviceHostingEnvironment>` child.
+
+Stage 6 parsing is built from `LegacyWcfElement` in `LegacyWcfTypedModelBuilder`. It reads the first direct `<serviceHostingEnvironment>` child under `<system.serviceModel>`, preserves all source attributes through `Attributes`, expose `aspNetCompatibilityEnabled` and `multipleSiteBindingsEnabled` as string values, and retain the raw element through `RawElement`. Unknown child elements under `<serviceHostingEnvironment>` remain preserved through `ServiceHostingEnvironment.RawElement.Children` but should not be surfaced as typed objects.
+
+Stage 6 does not parse boolean values into `bool`, validate boolean strings, add lookup helpers, emit duplicate diagnostics, add CoreWCF mapping, generate code, or add CLI tooling. If more than one direct `<serviceHostingEnvironment>` element exists, Stage 6 parses the first direct element and preserves all elements in `RawSystemServiceModel`; duplicate diagnostics belong to a later validation phase.
 
 ## Typed collections
 

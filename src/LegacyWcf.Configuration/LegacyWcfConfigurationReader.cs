@@ -16,7 +16,7 @@ namespace LegacyWcf.Configuration;
 /// preserves the raw XML tree, and builds additive typed models for supported WCF concepts.
 /// Phase 2 Stage 5 supports typed services, service endpoints, service hosts, host
 /// base addresses, initial typed binding enumeration, initial typed behaviour enumeration,
-/// and typed client endpoint enumeration.
+/// typed client endpoint enumeration, and typed service hosting environment values.
 /// </remarks>
 public static class LegacyWcfConfigurationReader
 {
@@ -128,7 +128,15 @@ public static class LegacyWcfConfigurationReader
         var bindings = LegacyWcfTypedModelBuilder.BuildBindings(rawSystemServiceModel);
         var behaviors = LegacyWcfTypedModelBuilder.BuildBehaviors(rawSystemServiceModel);
         var client = LegacyWcfTypedModelBuilder.BuildClient(rawSystemServiceModel);
-        var configuration = new LegacyWcfConfiguration(rawSystemServiceModel, diagnostics, services, bindings, behaviors, client);
+        var serviceHostingEnvironment = LegacyWcfTypedModelBuilder.BuildServiceHostingEnvironment(rawSystemServiceModel);
+        var configuration = new LegacyWcfConfiguration(
+            rawSystemServiceModel,
+            diagnostics,
+            services,
+            bindings,
+            behaviors,
+            client,
+            serviceHostingEnvironment);
 
         return new LegacyWcfConfigurationReadResult(
             success: true,

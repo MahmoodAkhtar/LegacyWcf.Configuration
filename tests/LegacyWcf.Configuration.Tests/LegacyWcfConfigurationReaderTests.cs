@@ -1342,6 +1342,209 @@ public sealed class LegacyWcfConfigurationReaderTests : IDisposable
         Assert.False(customClientChild.IsKnownElement);
     }
 
+
+    [Fact]
+    public void Read_WhenServiceHostingEnvironmentExists_PopulatesTypedServiceHostingEnvironment()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <serviceHostingEnvironment
+      aspNetCompatibilityEnabled="true"
+      multipleSiteBindingsEnabled="true" />
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+
+        var serviceHostingEnvironment = result.Configuration!.ServiceHostingEnvironment;
+        Assert.NotNull(serviceHostingEnvironment);
+        Assert.Equal("true", serviceHostingEnvironment!.AspNetCompatibilityEnabled);
+        Assert.Equal("true", serviceHostingEnvironment.MultipleSiteBindingsEnabled);
+        Assert.Equal("true", serviceHostingEnvironment.Attributes["aspNetCompatibilityEnabled"]);
+        Assert.Equal("true", serviceHostingEnvironment.Attributes["multipleSiteBindingsEnabled"]);
+        Assert.NotNull(serviceHostingEnvironment.RawElement);
+        Assert.Equal("serviceHostingEnvironment", serviceHostingEnvironment.RawElement.Name);
+    }
+
+    [Fact]
+    public void Read_WhenServiceHostingEnvironmentHasOnlyAspNetCompatibilityEnabled_PopulatesAvailableAttribute()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <serviceHostingEnvironment aspNetCompatibilityEnabled="false" />
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+
+        var serviceHostingEnvironment = result.Configuration!.ServiceHostingEnvironment;
+        Assert.NotNull(serviceHostingEnvironment);
+        Assert.Equal("false", serviceHostingEnvironment!.AspNetCompatibilityEnabled);
+        Assert.Null(serviceHostingEnvironment.MultipleSiteBindingsEnabled);
+        Assert.Equal("false", serviceHostingEnvironment.Attributes["aspNetCompatibilityEnabled"]);
+    }
+
+    [Fact]
+    public void Read_WhenServiceHostingEnvironmentHasNoAttributes_PreservesEmptyElement()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <serviceHostingEnvironment />
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+
+        var serviceHostingEnvironment = result.Configuration!.ServiceHostingEnvironment;
+        Assert.NotNull(serviceHostingEnvironment);
+        Assert.Null(serviceHostingEnvironment!.AspNetCompatibilityEnabled);
+        Assert.Null(serviceHostingEnvironment.MultipleSiteBindingsEnabled);
+        Assert.Empty(serviceHostingEnvironment.Attributes);
+        Assert.Equal("serviceHostingEnvironment", serviceHostingEnvironment.RawElement.Name);
+    }
+
+    [Fact]
+    public void Read_WhenServiceHostingEnvironmentIsMissing_ServiceHostingEnvironmentIsNull()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <services>
+      <service name="MyCompany.Services.CustomerService">
+        <host>
+          <baseAddresses>
+            <add baseAddress="http://localhost:8080/CustomerService" />
+          </baseAddresses>
+        </host>
+      </service>
+    </services>
+    <bindings>
+      <basicHttpBinding>
+        <binding name="CustomerBinding" />
+      </basicHttpBinding>
+    </bindings>
+    <behaviors>
+      <serviceBehaviors>
+        <behavior name="CustomerServiceBehavior" />
+      </serviceBehaviors>
+    </behaviors>
+    <client>
+      <endpoint name="CustomerClient" contract="MyCompany.Services.ICustomerService" />
+    </client>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+        Assert.Null(result.Configuration!.ServiceHostingEnvironment);
+        Assert.Single(result.Configuration.Services);
+        Assert.NotNull(result.Configuration.Services[0].Host);
+        Assert.Single(result.Configuration.Bindings.BasicHttp);
+        Assert.Single(result.Configuration.Behaviors.ServiceBehaviors);
+        Assert.NotNull(result.Configuration.Client);
+        Assert.Single(result.Configuration.Client!.Endpoints);
+    }
+
+    [Fact]
+    public void Read_WhenServiceHostingEnvironmentContainsUnknownAttribute_PreservesAttribute()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <serviceHostingEnvironment
+      aspNetCompatibilityEnabled="true"
+      customAttribute="abc" />
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+        Assert.Empty(result.Diagnostics);
+
+        var serviceHostingEnvironment = result.Configuration!.ServiceHostingEnvironment;
+        Assert.NotNull(serviceHostingEnvironment);
+        Assert.Equal("true", serviceHostingEnvironment!.AspNetCompatibilityEnabled);
+        Assert.Equal("abc", serviceHostingEnvironment.Attributes["customAttribute"]);
+    }
+
+    [Fact]
+    public void Read_WhenServiceHostingEnvironmentContainsUnknownChild_PreservesRawChild()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <serviceHostingEnvironment aspNetCompatibilityEnabled="true">
+      <customHostingChild value="abc" />
+    </serviceHostingEnvironment>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+        Assert.Empty(result.Diagnostics);
+
+        var serviceHostingEnvironment = result.Configuration!.ServiceHostingEnvironment;
+        Assert.NotNull(serviceHostingEnvironment);
+
+        var customHostingChild = Assert.Single(serviceHostingEnvironment!.RawElement.Children, child => child.Name == "customHostingChild");
+        Assert.Equal("abc", customHostingChild.Attributes["value"]);
+        Assert.False(customHostingChild.IsKnownElement);
+    }
+
+    [Fact]
+    public void Read_WhenMultipleServiceHostingEnvironmentElementsExist_UsesFirstTypedElementAndPreservesRawXml()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <serviceHostingEnvironment aspNetCompatibilityEnabled="true" />
+    <serviceHostingEnvironment aspNetCompatibilityEnabled="false" multipleSiteBindingsEnabled="true" />
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+        Assert.Empty(result.Diagnostics);
+
+        var serviceHostingEnvironment = result.Configuration!.ServiceHostingEnvironment;
+        Assert.NotNull(serviceHostingEnvironment);
+        Assert.Equal("true", serviceHostingEnvironment!.AspNetCompatibilityEnabled);
+        Assert.Null(serviceHostingEnvironment.MultipleSiteBindingsEnabled);
+
+        var rawElements = result.Configuration.RawSystemServiceModel.Children
+            .Where(child => child.Name == "serviceHostingEnvironment")
+            .ToList();
+
+        Assert.Equal(2, rawElements.Count);
+    }
+
     private string WriteConfig(string xml)
     {
         var filePath = Path.Combine(_tempDirectory, $"{Guid.NewGuid():N}.config");

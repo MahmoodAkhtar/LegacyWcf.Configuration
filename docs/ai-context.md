@@ -355,6 +355,8 @@ LegacyWcfServiceEndpoints
 
 **Phase 2 Stage 5: Typed client endpoint support is implemented.**
 
+**Phase 2 Stage 6: Typed `serviceHostingEnvironment` support is implemented.**
+
 The current code exposes typed service host configuration through:
 
 ```text
@@ -393,6 +395,7 @@ src/LegacyWcf.Configuration/
 ├── LegacyWcfClient.cs
 ├── LegacyWcfClientEndpoint.cs
 ├── LegacyWcfClientEndpoints.cs
+├── LegacyWcfServiceHostingEnvironment.cs
 ├── LegacyWcfService.cs
 ├── LegacyWcfServiceEndpoint.cs
 ├── LegacyWcfServiceEndpoints.cs
@@ -456,16 +459,90 @@ Current tests cover:
 - missing optional client endpoint attributes are preserved as `null` typed values
 - unknown client endpoint attributes are preserved through `endpoint.Attributes`
 - unknown client child elements remain raw-only
+- typed serviceHostingEnvironment parsing
+- serviceHostingEnvironment common attribute preservation
+- missing optional serviceHostingEnvironment attributes preserved as `null` typed values
+- missing `<serviceHostingEnvironment>` produces `config.ServiceHostingEnvironment == null`
+- unknown serviceHostingEnvironment attributes are preserved through `ServiceHostingEnvironment.Attributes`
+- unknown serviceHostingEnvironment child elements remain raw-only
+- multiple direct serviceHostingEnvironment elements use the first typed element and preserve all raw elements
 
 Current test status:
 
-- latest provided full test run after Phase 2 Stage 5: 42 total, 42 passed, 0 failed, 0 skipped.
+- latest provided full test run after Phase 2 Stage 6: 49 total, 49 passed, 0 failed, 0 skipped.
+- Phase 2 Stage 6 added 7 tests to the provided test file.
 
 Future AI implementation chats should preserve this boundary: raw XML preservation first, typed parsing only as additive views over the raw tree.
 
 ## Current next implementation slice
 
-The next implementation step is typed `serviceHostingEnvironment` support.
+The next implementation step is Phase 3 retrieval APIs.
+
+
+## Completed Phase 2 Stage 6 slice
+
+**Phase 2 Stage 6: typed serviceHostingEnvironment support is implemented.**
+
+Stage 6 adds typed support for WCF `serviceHostingEnvironment` only:
+
+- `LegacyWcfServiceHostingEnvironment`
+- `LegacyWcfConfiguration.ServiceHostingEnvironment`
+- parsing the first direct `<serviceHostingEnvironment>` child under `<system.serviceModel>` from the preserved raw `LegacyWcfElement` tree
+- raw XML preservation for the typed `serviceHostingEnvironment` object
+- tests for common attributes, missing attributes, missing element, unknown attributes, unknown child elements, duplicate direct elements, and raw XML preservation
+
+Required Stage 6 public model shape:
+
+```text
+LegacyWcfServiceHostingEnvironment
+- string? AspNetCompatibilityEnabled
+- string? MultipleSiteBindingsEnabled
+- IReadOnlyDictionary<string, string> Attributes
+- LegacyWcfElement RawElement
+
+LegacyWcfConfiguration
+- LegacyWcfServiceHostingEnvironment? ServiceHostingEnvironment
+```
+
+Stage 6 parsing rules:
+
+- `AspNetCompatibilityEnabled` comes from `aspNetCompatibilityEnabled`.
+- `MultipleSiteBindingsEnabled` comes from `multipleSiteBindingsEnabled`.
+- missing optional attributes become `null` typed property values.
+- `Attributes` preserves all source attributes, including unknown attributes.
+- `RawElement` points to the preserved raw `<serviceHostingEnvironment>` element.
+- `config.ServiceHostingEnvironment` is `null` when the element is missing.
+- unknown child elements remain available through `ServiceHostingEnvironment.RawElement.Children`.
+- do not parse boolean values into `bool`; preserve values as strings exactly as they appear in XML.
+- do not validate whether `aspNetCompatibilityEnabled` or `multipleSiteBindingsEnabled` values are valid boolean strings.
+- if more than one direct `<serviceHostingEnvironment>` element exists, parse the first direct element and preserve all elements in `RawSystemServiceModel`; duplicate diagnostics belong to a later validation phase.
+
+Stage 6 does not implement:
+
+- `Find(...)`
+- `GetRequired(...)`
+- service lookup helpers
+- service endpoint lookup helpers
+- client endpoint lookup helpers
+- binding lookup helpers
+- behaviour lookup helpers
+- validation diagnostics for duplicate services, bindings, behaviours, endpoints, or serviceHostingEnvironment elements
+- validation diagnostics for missing binding references
+- validation diagnostics for missing behaviour references
+- CoreWCF mapping
+- code generation
+- CLI tooling
+
+Implementation notes for Stage 6:
+
+- `src/LegacyWcf.Configuration/Internal/LegacyWcfTypedModelBuilder.cs` is extended
+- typed serviceHostingEnvironment is built from `LegacyWcfElement` only
+- serviceHostingEnvironment is not parsed from `XDocument` or `XElement`
+- files are not read inside the typed model builder
+- public API files remain directly under `src/LegacyWcf.Configuration/`
+- implementation-only helpers remain under `src/LegacyWcf.Configuration/Internal/`
+- public API types use the root namespace `LegacyWcf.Configuration`
+- internal implementation types use `LegacyWcf.Configuration.Internal`
 
 ## Completed Phase 2 Stage 5 slice
 
@@ -520,7 +597,7 @@ Stage 5 parsing rules:
 
 Implementation guidance:
 
-- extend `src/LegacyWcf.Configuration/Internal/LegacyWcfTypedModelBuilder.cs`
+- `src/LegacyWcf.Configuration/Internal/LegacyWcfTypedModelBuilder.cs` is extended
 - build typed client endpoints from the preserved `LegacyWcfElement` tree only
 - do not parse client endpoints directly from `XDocument` or `XElement`
 - keep public API files directly under `src/LegacyWcf.Configuration/`

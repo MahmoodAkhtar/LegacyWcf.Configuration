@@ -11,7 +11,7 @@ Many legacy WCF applications contain important runtime behaviour in XML configur
 ```xml
 <configuration>
   <system.serviceModel>
-    <!-- services, endpoints, bindings, behaviours, host settings, client endpoints, etc. -->
+    <!-- services, endpoints, bindings, behaviours, host settings, client endpoints, service hosting environment settings, etc. -->
   </system.serviceModel>
 </configuration>
 ```
@@ -82,7 +82,7 @@ This keeps the package usable from .NET Framework 4.8 applications through `nets
 
 ## Intended usage
 
-The currently implemented API reads a config file, preserves the raw `<system.serviceModel>` XML tree, and exposes typed services, service endpoints, service hosts, host base addresses, host timeouts, initial typed binding collections, initial typed behaviour collections, and typed client endpoints:
+The currently implemented API reads a config file, preserves the raw `<system.serviceModel>` XML tree, and exposes typed services, service endpoints, service hosts, host base addresses, host timeouts, initial typed binding collections, initial typed behaviour collections, typed client endpoints, and typed service hosting environment settings:
 
 ```csharp
 using LegacyWcf.Configuration;
@@ -156,6 +156,12 @@ if (config.Client is not null)
         Console.WriteLine($"  Address: {endpoint.Address}");
     }
 }
+
+if (config.ServiceHostingEnvironment is not null)
+{
+    Console.WriteLine($"ASP.NET compatibility: {config.ServiceHostingEnvironment.AspNetCompatibilityEnabled}");
+    Console.WriteLine($"Multiple site bindings: {config.ServiceHostingEnvironment.MultipleSiteBindingsEnabled}");
+}
 ```
 
 Future typed model APIs are intended to make common WCF concepts directly queryable:
@@ -192,7 +198,7 @@ var baseAddresses = service.Host?.BaseAddresses ?? [];
 ```
 
 
-## Current implementation slice: Phase 2 Stage 5 typed services, endpoints, hosts, bindings, behaviours, and client endpoints
+## Current implementation slice: Phase 2 Stage 6 typed services, endpoints, hosts, bindings, behaviours, client endpoints, and serviceHostingEnvironment
 
 **Phase 1: Full-fidelity reader is implemented.**
 
@@ -206,7 +212,9 @@ var baseAddresses = service.Host?.BaseAddresses ?? [];
 
 **Phase 2 Stage 5: Typed client endpoint support is implemented.**
 
-The reader now preserves the full raw `<system.serviceModel>` XML tree and builds additive typed models for the currently supported WCF concepts. Raw XML remains the source of truth, and every typed service, endpoint, host, host timeout, binding, behaviour, client, and client endpoint object keeps access to its source `LegacyWcfElement`.
+**Phase 2 Stage 6: Typed `serviceHostingEnvironment` support is implemented.**
+
+The reader now preserves the full raw `<system.serviceModel>` XML tree and builds additive typed models for the currently supported WCF concepts. Raw XML remains the source of truth, and every typed service, endpoint, host, host timeout, binding, behaviour, client, client endpoint, and service hosting environment object keeps access to its source `LegacyWcfElement`.
 
 The implemented API supports:
 
@@ -266,17 +274,20 @@ The current implementation provides:
 - typed service behaviour and endpoint behaviour collections through `ServiceBehaviors` and `EndpointBehaviors`
 - typed client access through `config.Client`
 - typed client endpoint enumeration through `config.Client.Endpoints`
+- typed service hosting environment access through `config.ServiceHostingEnvironment`
 - no CoreWCF dependency in the core package
 
 The implemented Stage 3 binding API adds typed binding models, typed binding collections, and a top-level `config.Bindings` container for the common binding groups `basicHttpBinding`, `wsHttpBinding`, `netTcpBinding`, and `customBinding`. Binding values are parsed from the preserved raw `LegacyWcfElement` tree, each typed binding retains its source raw `<binding>` element, and unknown binding groups or child elements remain preserved in raw XML.
 
 The implemented Stage 4 behaviour API adds typed behaviour models, typed behaviour collections, and a top-level `config.Behaviors` container for service behaviours and endpoint behaviours. Behaviour values are parsed from the preserved raw `LegacyWcfElement` tree, each typed behaviour retains its source raw `<behavior>` or `<behaviour>` element, and unknown behaviour groups or child elements remain preserved in raw XML.
 
-The implemented Stage 5 client endpoint API adds typed client models, typed client endpoint models, typed client endpoint collections, and a top-level `config.Client` property. Client endpoint values are parsed from the preserved raw `LegacyWcfElement` tree, each typed client endpoint retains its source raw `<endpoint>` element, all source endpoint attributes are preserved through `endpoint.Attributes`, and unknown child elements under `<client>` remain preserved in raw XML. Stage 5 does not add lookup APIs, validation diagnostics, CoreWCF mapping, code generation, CLI tooling, or `serviceHostingEnvironment`.
+The implemented Stage 5 client endpoint API adds typed client models, typed client endpoint models, typed client endpoint collections, and a top-level `config.Client` property. Client endpoint values are parsed from the preserved raw `LegacyWcfElement` tree, each typed client endpoint retains its source raw `<endpoint>` element, all source endpoint attributes are preserved through `endpoint.Attributes`, and unknown child elements under `<client>` remain preserved in raw XML.
 
-## Next implementation slice: serviceHostingEnvironment
+The implemented Stage 6 service hosting environment API adds a typed `LegacyWcfServiceHostingEnvironment` model and a top-level `config.ServiceHostingEnvironment` property. Values are parsed from the preserved raw `LegacyWcfElement` tree, `aspNetCompatibilityEnabled` and `multipleSiteBindingsEnabled` are preserved as strings, all source attributes are preserved through `Attributes`, and unknown child elements remain preserved through `RawElement.Children`. Stage 6 does not add lookup APIs, validation diagnostics, CoreWCF mapping, code generation, or CLI tooling.
 
-The next documentation-backed implementation slice should add typed support for `serviceHostingEnvironment` while keeping the raw XML model as the source of truth. Lookup helpers, cross-reference validation, CoreWCF mapping, code generation, and CLI tooling remain later phases.
+## Next implementation slice: Phase 3 retrieval APIs
+
+The next documentation-backed implementation slice should add targeted retrieval APIs such as `Find(...)` and `GetRequired(...)` where useful. These lookup helpers should sit on top of the typed model without weakening raw XML preservation.
 
 ## Relationship to CoreWCF
 
@@ -334,6 +345,7 @@ LegacyWcf.Configuration/
 │       ├── LegacyWcfClient.cs
 │       ├── LegacyWcfClientEndpoint.cs
 │       ├── LegacyWcfClientEndpoints.cs
+│       ├── LegacyWcfServiceHostingEnvironment.cs
 │       ├── LegacyWcfService.cs
 │       ├── LegacyWcfServiceEndpoint.cs
 │       ├── LegacyWcfServiceEndpoints.cs
@@ -372,15 +384,17 @@ Phase 2 Stage 4 initial typed behaviour support is implemented and covered by te
 
 Phase 2 Stage 5 typed client endpoint support is implemented and covered by tests.
 
+Phase 2 Stage 6 typed `serviceHostingEnvironment` support is implemented and covered by tests in the provided codebase.
+
 Current test status:
 
-- latest provided full test run after Phase 2 Stage 5: 42 total, 42 passed, 0 failed, 0 skipped.
+- latest provided full test run after Phase 2 Stage 6: 49 total, 49 passed, 0 failed, 0 skipped.
 
 The completed Phase 2 Stage 3 slice adds `LegacyWcfBinding`, `LegacyWcfBindingCollection`, `LegacyWcfBindings`, and `LegacyWcfConfiguration.Bindings`, while keeping all lookup helpers and validation diagnostics for later phases.
 
 The completed Phase 2 Stage 4 slice adds `LegacyWcfBehavior`, `LegacyWcfBehaviorCollection`, `LegacyWcfBehaviors`, and `LegacyWcfConfiguration.Behaviors`. It supports standard American WCF element spelling and British legacy/custom aliases while keeping lookup helpers and validation diagnostics for later phases.
 
-The next implementation step should be typed `serviceHostingEnvironment` support. The project should continue to prioritise:
+The next implementation step should be Phase 3 retrieval APIs. The project should continue to prioritise:
 
 - full-fidelity XML preservation
 - typed access to common WCF values

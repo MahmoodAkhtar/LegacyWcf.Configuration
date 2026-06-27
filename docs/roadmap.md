@@ -69,10 +69,10 @@ Phase 1 does not include typed services, endpoints, bindings, behaviours, lookup
 
 ### Current overall test status
 
-The latest provided full test run after Phase 2 Stage 5 passed:
+The latest provided full test run after Phase 2 Stage 6 passed:
 
-- total tests: 42
-- passed: 42
+- total tests: 49
+- passed: 49
 - failed: 0
 - skipped: 0
 
@@ -237,13 +237,20 @@ Stage 5 adds typed support for WCF client endpoint configuration only:
 
 Stage 5 parses only from the preserved `LegacyWcfElement` tree. It does not parse directly from `XDocument` or `XElement`, validate binding or behaviour references, add lookup helpers, add CoreWCF mapping, generate code, add CLI tooling, or implement `serviceHostingEnvironment`.
 
-### Phase 2 later typed model stages
+### Phase 2 Stage 6: typed serviceHostingEnvironment
 
-Later Phase 2 slices after Stage 5 should add the remaining typed WCF model areas:
+Status: implemented.
 
-- serviceHostingEnvironment
+Stage 6 adds typed support for WCF `serviceHostingEnvironment` configuration only:
 
-These should remain additive views over the preserved raw XML tree and should not introduce CoreWCF dependencies.
+- `LegacyWcfServiceHostingEnvironment`
+- `LegacyWcfConfiguration.ServiceHostingEnvironment`
+- attributes `aspNetCompatibilityEnabled` and `multipleSiteBindingsEnabled` as string values
+- all source attributes preserved through `LegacyWcfServiceHostingEnvironment.Attributes`
+- raw XML fallback through `LegacyWcfServiceHostingEnvironment.RawElement`
+- tests for common attributes, missing attributes, missing element, unknown attributes, unknown child elements, duplicate direct elements, and raw XML preservation
+
+Stage 6 parses only from the preserved `LegacyWcfElement` tree. It does not parse directly from `XDocument` or `XElement`, parse boolean values into `bool`, validate boolean strings, emit duplicate diagnostics, add lookup helpers, add CoreWCF mapping, generate code, or add CLI tooling.
 
 ## Phase 3: Retrieval APIs
 
@@ -390,6 +397,7 @@ The MVP should include:
 - initial binding support
 - initial behaviour support
 - client endpoint support (implemented)
+- serviceHostingEnvironment support (implemented)
 - typed enumerable collections
 - `Find(...)` and `GetRequired(...)` where useful
 - permissive diagnostics

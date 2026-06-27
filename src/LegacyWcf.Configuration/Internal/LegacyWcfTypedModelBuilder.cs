@@ -54,6 +54,30 @@ internal static class LegacyWcfTypedModelBuilder
     }
 
 
+
+
+    public static LegacyWcfServiceHostingEnvironment? BuildServiceHostingEnvironment(LegacyWcfElement rawSystemServiceModel)
+    {
+        if (rawSystemServiceModel is null)
+        {
+            throw new ArgumentNullException(nameof(rawSystemServiceModel));
+        }
+
+        var serviceHostingEnvironmentElement = rawSystemServiceModel.Children
+            .FirstOrDefault(child => IsNamed(child, "serviceHostingEnvironment"));
+
+        if (serviceHostingEnvironmentElement is null)
+        {
+            return null;
+        }
+
+        return new LegacyWcfServiceHostingEnvironment(
+            aspNetCompatibilityEnabled: GetAttributeOrNull(serviceHostingEnvironmentElement, "aspNetCompatibilityEnabled"),
+            multipleSiteBindingsEnabled: GetAttributeOrNull(serviceHostingEnvironmentElement, "multipleSiteBindingsEnabled"),
+            attributes: serviceHostingEnvironmentElement.Attributes,
+            rawElement: serviceHostingEnvironmentElement);
+    }
+
     public static LegacyWcfBindings BuildBindings(LegacyWcfElement rawSystemServiceModel)
     {
         if (rawSystemServiceModel is null)
