@@ -69,10 +69,10 @@ Phase 1 does not include typed services, endpoints, bindings, behaviours, lookup
 
 ### Current overall test status
 
-The latest provided full test run after Phase 2 Stage 6 passed:
+The latest provided full test run after Phase 4 passed:
 
-- total tests: 49
-- passed: 49
+- total tests: 78
+- passed: 78
 - failed: 0
 - skipped: 0
 
@@ -303,24 +303,31 @@ Phase 3 should not include validation diagnostics, duplicate detection, missing 
 
 ## Phase 4: Validation and diagnostics
 
+Status: implemented.
+
 Goal:
 
 ```text
 Add permissive validation and useful diagnostics.
 ```
 
-Diagnostics should include:
+Diagnostics include the existing read-failure diagnostics plus new permissive validation diagnostics for successful reads:
 
 - malformed XML
 - missing `<configuration>`
 - missing `<system.serviceModel>`
 - unknown elements
-- unknown attributes
+- unknown attributes where useful
 - duplicate named services
 - duplicate named bindings
-- endpoint references missing binding configuration
-- endpoint references missing behaviour configuration
-- service references missing behaviour configuration
+- duplicate named service behaviours
+- duplicate named endpoint behaviours
+- duplicate direct `serviceHostingEnvironment` elements
+- service endpoint references missing binding configuration
+- client endpoint references missing binding configuration
+- service endpoint references missing endpoint behaviour configuration
+- client endpoint references missing endpoint behaviour configuration
+- service references missing service behaviour configuration
 - unsupported or partially understood elements
 - likely CoreWCF migration concerns
 
@@ -332,6 +339,26 @@ Preserve what is unknown.
 Report diagnostics.
 Only fail when the XML cannot be loaded or the requested file cannot be read.
 ```
+
+Phase 4 is additive and does not break existing public APIs. It builds diagnostics from the preserved raw XML tree and the current typed model. It does not introduce CoreWCF mapping, code generation, CLI tooling, automatic migration, strict schema enforcement, or richer binding/behaviour-specific models.
+
+Representative Phase 4 tests include duplicate services, duplicate bindings, duplicate behaviours, missing binding references from service and client endpoints, missing behaviour references from services and endpoints, duplicate direct `serviceHostingEnvironment`, unknown raw elements, and confirmation that successful reads remain successful when warnings are emitted.
+
+Implemented Phase 4 validation codes:
+
+| Code | Meaning |
+|---|---|
+| `LWC1001` | Unknown or unsupported WCF configuration element was preserved in raw XML. |
+| `LWC1002` | Duplicate non-blank service name. |
+| `LWC1003` | Duplicate non-blank binding name within the same binding type. |
+| `LWC1004` | Duplicate non-blank service behaviour name. |
+| `LWC1005` | Duplicate non-blank endpoint behaviour name. |
+| `LWC1006` | Duplicate direct `serviceHostingEnvironment` element. |
+| `LWC1007` | Endpoint references a missing binding configuration. |
+| `LWC1008` | Endpoint references a missing endpoint behaviour configuration. |
+| `LWC1009` | Service references a missing service behaviour configuration. |
+
+
 
 ## Phase 5: Optional CoreWCF mapping helpers
 
@@ -418,7 +445,7 @@ The MVP should include:
 - serviceHostingEnvironment support (implemented)
 - typed enumerable collections
 - `Find(...)` and `GetRequired(...)` where useful (implemented)
-- permissive diagnostics
+- permissive diagnostics (implemented)
 - representative test config files
 
 The MVP should avoid:

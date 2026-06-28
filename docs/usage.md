@@ -2,7 +2,7 @@
 
 This document shows how LegacyWcf.Configuration is intended to be used by application developers.
 
-Phase 1 raw-reader APIs are implemented. Phase 2 Stage 1 typed service and endpoint APIs are implemented. Phase 2 Stage 2 typed service host, host base address, and host timeout APIs are implemented. Phase 2 Stage 3 initial typed binding APIs are implemented. Phase 2 Stage 4 initial typed behaviour APIs are implemented. Phase 2 Stage 5 typed client endpoint APIs are implemented. Phase 2 Stage 6 typed `serviceHostingEnvironment` APIs are implemented. Phase 3 retrieval APIs are implemented. The lookup examples in this document are now supported by the typed collections.
+Phase 1 raw-reader APIs are implemented. Phase 2 Stage 1 typed service and endpoint APIs are implemented. Phase 2 Stage 2 typed service host, host base address, and host timeout APIs are implemented. Phase 2 Stage 3 initial typed binding APIs are implemented. Phase 2 Stage 4 initial typed behaviour APIs are implemented. Phase 2 Stage 5 typed client endpoint APIs are implemented. Phase 2 Stage 6 typed `serviceHostingEnvironment` APIs are implemented. Phase 3 retrieval APIs are implemented. The lookup examples in this document are now supported by the typed collections. Phase 4 validation diagnostics are implemented and remain additive.
 
 ## Install
 
@@ -96,14 +96,68 @@ Phase 1 diagnostic codes are:
 | `LWC0004` | Root `<configuration>` element was not found. |
 | `LWC0005` | `<system.serviceModel>` was not found under `<configuration>`. |
 
-Future diagnostics may include:
+Phase 4 diagnostics include:
 
 - duplicate named services
 - duplicate named bindings
-- unknown elements preserved
-- unknown attributes preserved
-- references to missing binding configurations
-- references to missing behaviour configurations
+- duplicate named service behaviours
+- duplicate named endpoint behaviours
+- duplicate direct `serviceHostingEnvironment` elements
+- unknown or unsupported elements preserved for review
+- service endpoints referencing missing binding configurations
+- client endpoints referencing missing binding configurations
+- service endpoints referencing missing endpoint behaviour configurations
+- client endpoints referencing missing endpoint behaviour configurations
+- services referencing missing service behaviour configurations
+
+Phase 4 still allows a successful read for well-formed WCF XML that contains these issues. Consumers should inspect `result.Diagnostics` and `config.Diagnostics` after a successful read.
+
+
+## Phase 4 usage: inspect validation diagnostics after a successful read
+
+Phase 4 keeps the same read entry point. The main usage change is that a successful read may include warning or informational diagnostics for configuration issues that deserve review.
+
+```csharp
+using LegacyWcf.Configuration;
+
+var result = LegacyWcfConfigurationReader.Read("web.config");
+
+foreach (var diagnostic in result.Diagnostics)
+{
+    Console.WriteLine($"{diagnostic.Code}: {diagnostic.Severity}: {diagnostic.Message}");
+}
+
+if (!result.Success)
+{
+    return;
+}
+
+var config = result.Configuration!;
+
+foreach (var diagnostic in config.Diagnostics)
+{
+    Console.WriteLine($"{diagnostic.Code}: {diagnostic.Severity}: {diagnostic.Message}");
+}
+```
+
+Examples of Phase 4 diagnostics include duplicate named services, duplicate named bindings, duplicate named behaviours, service or client endpoints referencing missing binding configurations, endpoints referencing missing endpoint behaviours, services referencing missing service behaviours, duplicate direct `serviceHostingEnvironment` elements, and unknown or unsupported elements preserved for review.
+
+Lookup helpers should remain retrieval helpers only. For example, when duplicate services exist, `config.Services.Find(name)` should continue to return the first matching service, while Phase 4 diagnostics should report that duplicates were found.
+
+Implemented Phase 4 validation codes:
+
+| Code | Meaning |
+|---|---|
+| `LWC1001` | Unknown or unsupported WCF configuration element was preserved in raw XML. |
+| `LWC1002` | Duplicate non-blank service name. |
+| `LWC1003` | Duplicate non-blank binding name within the same binding type. |
+| `LWC1004` | Duplicate non-blank service behaviour name. |
+| `LWC1005` | Duplicate non-blank endpoint behaviour name. |
+| `LWC1006` | Duplicate direct `serviceHostingEnvironment` element. |
+| `LWC1007` | Endpoint references a missing binding configuration. |
+| `LWC1008` | Endpoint references a missing endpoint behaviour configuration. |
+| `LWC1009` | Service references a missing service behaviour configuration. |
+
 
 ## Phase 3 typed service, endpoint, host, binding, behaviour, client endpoint, serviceHostingEnvironment, and retrieval API usage
 

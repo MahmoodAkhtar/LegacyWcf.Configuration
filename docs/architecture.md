@@ -144,7 +144,8 @@ src/
     ├── LegacyWcfServices.cs
     └── Internal/
         ├── LegacyWcfRawElementBuilder.cs
-        └── LegacyWcfTypedModelBuilder.cs
+        ├── LegacyWcfTypedModelBuilder.cs
+        └── LegacyWcfConfigurationValidator.cs
 ```
 
 The current convention is:
@@ -381,7 +382,7 @@ File path
   -> return LegacyWcfConfiguration with RawSystemServiceModel and Services
 ```
 
-The current reader flow keeps that raw-first approach and then builds typed services, bindings, behaviours, client endpoint models, and serviceHostingEnvironment from the preserved raw tree before returning `LegacyWcfConfiguration`. Phase 3 adds retrieval helpers on top of those typed collections without changing the reader flow.
+The current reader flow keeps that raw-first approach and then builds typed services, bindings, behaviours, client endpoint models, and serviceHostingEnvironment from the preserved raw tree before returning `LegacyWcfConfiguration`. Phase 3 adds retrieval helpers on top of those typed collections without changing the reader flow. Phase 4 adds validation diagnostics after raw and typed model construction, without changing raw XML preservation or making the typed model the source of truth.
 
 Every typed object should expose its raw element:
 
@@ -586,6 +587,50 @@ Stage 5 parsing is built from `LegacyWcfElement` in `LegacyWcfTypedModelBuilder`
 Stage 5 does not add serviceHostingEnvironment, lookup helpers, validation diagnostics, CoreWCF mapping, code generation, or CLI tooling.
 
 
+
+### Phase 4 validation diagnostics boundary
+
+Phase 4 validation diagnostics are implemented on top of the existing raw-first reader flow. They do not replace parsing, lookup, or raw preservation behaviour.
+
+The preferred flow is:
+
+```text
+File path
+  -> load XML document
+  -> locate <configuration>
+  -> locate <system.serviceModel>
+  -> build full raw LegacyWcfElement tree
+  -> build typed services, bindings, behaviours, client endpoints, and serviceHostingEnvironment from the raw tree
+  -> run permissive validation over the raw and typed model
+  -> attach diagnostics to the result and configuration
+  -> return result
+```
+
+Validation is implemented as an internal concern. `LegacyWcfConfigurationValidator` lives under `src/LegacyWcf.Configuration/Internal/` and operates on `LegacyWcfElement` plus the typed model. Public API files remain directly under `src/LegacyWcf.Configuration/`; no new public validation type is required.
+
+Phase 4 diagnostics report duplicate named services, duplicate named bindings, duplicate named service behaviours, duplicate named endpoint behaviours, duplicate direct `serviceHostingEnvironment` elements, missing binding references from service and client endpoints, missing endpoint behaviour references from service and client endpoints, missing service behaviour references from services, and unknown or unsupported raw elements.
+
+The default mode remains permissive: well-formed legacy WCF XML with validation issues should still return `Success == true`. Existing failure behaviour should remain reserved for missing or blank paths, missing files, unreadable files, malformed XML, missing `<configuration>`, and missing `<system.serviceModel>`.
+
+Lookup helpers are not validators. If duplicates exist, Phase 3 lookup helpers continue returning the first matching object; Phase 4 reports duplicates through diagnostics.
+
+Phase 4 does not add CoreWCF mapping, code generation, CLI tooling, automatic migration, strict schema enforcement, or a dependency on CoreWCF in the core package.
+
+Implemented Phase 4 validation diagnostic codes are:
+
+| Code | Meaning |
+|---|---|
+| `LWC1001` | Unknown or unsupported WCF configuration element was preserved in raw XML. |
+| `LWC1002` | Duplicate non-blank service name. |
+| `LWC1003` | Duplicate non-blank binding name within the same binding type. |
+| `LWC1004` | Duplicate non-blank service behaviour name. |
+| `LWC1005` | Duplicate non-blank endpoint behaviour name. |
+| `LWC1006` | Duplicate direct `serviceHostingEnvironment` element. |
+| `LWC1007` | Endpoint references a missing binding configuration. |
+| `LWC1008` | Endpoint references a missing endpoint behaviour configuration. |
+| `LWC1009` | Service references a missing service behaviour configuration. |
+
+
 ### Phase 2 Stage 6 typed serviceHostingEnvironment model boundary
 
 The sixth typed-model slice is implemented and adds WCF `serviceHostingEnvironment` support only. It remains additive on top of the preserved raw model and should not validate values or emit duplicate diagnostics.
@@ -613,7 +658,7 @@ public sealed class LegacyWcfServiceHostingEnvironment
 
 Stage 6 parsing is built from `LegacyWcfElement` in `LegacyWcfTypedModelBuilder`. It reads the first direct `<serviceHostingEnvironment>` child under `<system.serviceModel>`, preserves all source attributes through `Attributes`, expose `aspNetCompatibilityEnabled` and `multipleSiteBindingsEnabled` as string values, and retain the raw element through `RawElement`. Unknown child elements under `<serviceHostingEnvironment>` remain preserved through `ServiceHostingEnvironment.RawElement.Children` but should not be surfaced as typed objects.
 
-Stage 6 does not parse boolean values into `bool`, validate boolean strings, add lookup helpers, emit duplicate diagnostics, add CoreWCF mapping, generate code, or add CLI tooling. If more than one direct `<serviceHostingEnvironment>` element exists, Stage 6 parses the first direct element and preserves all elements in `RawSystemServiceModel`; duplicate diagnostics belong to a later validation phase.
+Stage 6 does not parse boolean values into `bool`, validate boolean strings, add lookup helpers, emit duplicate diagnostics, add CoreWCF mapping, generate code, or add CLI tooling. If more than one direct `<serviceHostingEnvironment>` element exists, Stage 6 parses the first direct element and preserves all elements in `RawSystemServiceModel`; duplicate diagnostics are emitted by Phase 4 validation.
 
 ### Phase 3 retrieval API boundary
 
@@ -681,11 +726,11 @@ This pattern should be considered for:
 
 ## Phase 3 retrieval API boundary
 
-Phase 3 is the next planned implementation slice. It should add targeted retrieval APIs on top of the existing typed collections without changing how XML is read or typed models are built.
+Phase 3 retrieval APIs are implemented. They add targeted retrieval APIs on top of the existing typed collections without changing how XML is read or typed models are built.
 
 Phase 3 belongs in the public typed collection classes because those classes already own enumeration and indexing for their item types. The retrieval helpers should be additive convenience APIs over those lists, not a new parser layer and not a validation system.
 
-Planned collection-level helpers:
+Implemented collection-level helpers:
 
 ```text
 LegacyWcfServices
@@ -890,6 +935,7 @@ Test categories:
 - unknown elements preserved
 - unknown attributes preserved
 - diagnostics behaviour
+- validation diagnostics for duplicates and missing references
 - `Find(...)` and `GetRequired(...)` behaviour
 
 Configuration examples in `docs/configuration-spec.md` should inform test data.

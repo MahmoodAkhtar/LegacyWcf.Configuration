@@ -275,7 +275,7 @@ RawElement
 
 `AspNetCompatibilityEnabled` should come from the source `aspNetCompatibilityEnabled` attribute. `MultipleSiteBindingsEnabled` should come from the source `multipleSiteBindingsEnabled` attribute. Missing optional attributes produce `null` typed property values. `Attributes` preserves all source attributes, including unknown attributes. `RawElement` points to the preserved raw `<serviceHostingEnvironment>` element.
 
-Stage 6 parses only the first direct `<serviceHostingEnvironment>` child under `<system.serviceModel>`. If no direct `<serviceHostingEnvironment>` element exists, `config.ServiceHostingEnvironment` should be `null`. If more than one direct `<serviceHostingEnvironment>` element exists, Stage 6 parses the first direct element, preserves all elements in `RawSystemServiceModel`, and emit no duplicate diagnostic. Duplicate diagnostics belong to a later validation phase.
+Stage 6 parses only the first direct `<serviceHostingEnvironment>` child under `<system.serviceModel>`. If no direct `<serviceHostingEnvironment>` element exists, `config.ServiceHostingEnvironment` should be `null`. If more than one direct `<serviceHostingEnvironment>` element exists, Stage 6 parses the first direct element, preserves all elements in `RawSystemServiceModel`, and emit no duplicate diagnostic. Duplicate diagnostics are emitted by Phase 4 validation.
 
 Stage 6 does not parse boolean values into `bool`. Values remain strings exactly as they appear in XML. Stage 6 does not validate whether `aspNetCompatibilityEnabled` or `multipleSiteBindingsEnabled` values are valid boolean strings. Unknown attributes and unknown child elements are preserved and do not cause a read failure or diagnostic in Stage 6.
 
@@ -307,6 +307,80 @@ General Phase 3 lookup behaviour:
 - Required lookup exception messages include the missing lookup value and enough context to identify whether the lookup was for a service, service endpoint, client endpoint, binding, service behaviour, or endpoint behaviour.
 
 Phase 3 does not add new WCF XML element support. It adds consumer-facing retrieval behaviour over the Phase 2 typed model.
+
+
+## Phase 4 validation diagnostics contract
+
+Phase 4 adds permissive validation diagnostics while preserving the existing raw and typed model behaviour. It does not make well-formed but imperfect legacy WCF configuration unreadable.
+
+General Phase 4 rules:
+
+- raw XML remains the source of truth
+- typed models remain additive views over the raw tree
+- validation diagnostics should be emitted without discarding unknown XML
+- `Success` should remain `true` for well-formed configuration that contains validation warnings
+- `Success` should remain `false` for missing or blank paths, missing files, unreadable files, malformed XML, missing `<configuration>`, and missing `<system.serviceModel>`
+- duplicate detection should not change enumeration order
+- lookup helpers should continue to return the first matching object when duplicates exist
+- validation should report duplicates and unresolved references through diagnostics rather than by changing lookup semantics
+
+Implemented Phase 4 diagnostics include:
+
+| Area | Diagnostic expectation | Success impact |
+|---|---|---|
+| Unknown raw element | Report preserved element that is not currently recognised or is unsupported for typed modelling. | Success remains `true`. |
+| Duplicate service name | Report duplicate non-blank service names. | Success remains `true`. |
+| Duplicate binding name | Report duplicate names within the same binding type. | Success remains `true`. |
+| Duplicate behaviour name | Report duplicate names within service behaviours or endpoint behaviours separately. | Success remains `true`. |
+| Duplicate `serviceHostingEnvironment` | Report more than one direct element under `<system.serviceModel>`. | Success remains `true`; typed model still uses the first element. |
+| Missing binding reference | Report service or client endpoint `bindingConfiguration` values that do not resolve to a binding of the endpoint `binding` type. | Success remains `true`. |
+| Missing endpoint behaviour reference | Report service or client endpoint `behaviorConfiguration` values that do not resolve to an endpoint behaviour. | Success remains `true`. |
+| Missing service behaviour reference | Report service `behaviorConfiguration` values that do not resolve to a service behaviour. | Success remains `true`. |
+
+Implemented Phase 4 validation codes:
+
+| Code | Meaning |
+|---|---|
+| `LWC1001` | Unknown or unsupported WCF configuration element was preserved in raw XML. |
+| `LWC1002` | Duplicate non-blank service name. |
+| `LWC1003` | Duplicate non-blank binding name within the same binding type. |
+| `LWC1004` | Duplicate non-blank service behaviour name. |
+| `LWC1005` | Duplicate non-blank endpoint behaviour name. |
+| `LWC1006` | Duplicate direct `serviceHostingEnvironment` element. |
+| `LWC1007` | Endpoint references a missing binding configuration. |
+| `LWC1008` | Endpoint references a missing endpoint behaviour configuration. |
+| `LWC1009` | Service references a missing service behaviour configuration. |
+
+
+Phase 4 should not validate by fully enforcing the WCF XML schema. It should focus on useful diagnostics for common modernization and inspection problems.
+
+## Phase 4 validation diagnostic scenarios
+
+Phase 4 validation is additive. The following scenarios should all keep `result.Success == true`, preserve raw XML, keep typed models available, and attach diagnostics to both `result.Diagnostics` and `result.Configuration.Diagnostics`.
+
+### Duplicate service name
+
+Two or more non-blank service names that match case-insensitively should produce `LWC1002`. Lookup helpers still return the first matching service.
+
+### Duplicate binding name
+
+Two or more non-blank binding names within the same binding type that match case-insensitively should produce `LWC1003`. The duplicate rule is scoped to each binding type, so a `basicHttpBinding` and `netTcpBinding` may use the same name without being duplicates of each other.
+
+### Duplicate behaviour name
+
+Duplicate non-blank service behaviour names should produce `LWC1004`. Duplicate non-blank endpoint behaviour names should produce `LWC1005`. Service behaviours and endpoint behaviours are separate duplicate scopes.
+
+### Duplicate serviceHostingEnvironment
+
+More than one direct `<serviceHostingEnvironment>` child under `<system.serviceModel>` should produce `LWC1006`. The typed model still uses the first direct element and raw XML preserves all elements.
+
+### Missing references
+
+A service or client endpoint with a non-blank `bindingConfiguration` that cannot be resolved through the endpoint `binding` type should produce `LWC1007`. A service or client endpoint with a non-blank `behaviorConfiguration` that cannot be resolved to an endpoint behaviour should produce `LWC1008`. A service with a non-blank `behaviorConfiguration` that cannot be resolved to a service behaviour should produce `LWC1009`.
+
+### Unknown raw element
+
+A raw element not recognised by the current reader should produce `LWC1001` as an informational diagnostic. The element and its attributes should remain available through the raw model.
 
 ## Scenario 1: Simple service with endpoint
 
@@ -1565,7 +1639,7 @@ config.RawSystemServiceModel.Children contains both serviceHostingEnvironment el
 
 ```text
 No duplicate diagnostic expected in Stage 6.
-Duplicate diagnostics belong to a later validation phase.
+Duplicate diagnostics are emitted by Phase 4 validation.
 ```
 
 ## Scenario 10: Unknown custom element preserved
@@ -1610,7 +1684,7 @@ The <nested> child element is preserved.
 ```text
 Phase 1 does not need to emit a diagnostic for this scenario.
 The reader should not fail solely because this unknown element exists.
-A later validation phase may emit a warning or informational diagnostic to say that an unknown element was preserved.
+Phase 4 emits an informational diagnostic to say that an unknown element was preserved.
 ```
 
 
@@ -1761,8 +1835,7 @@ All XML should be preserved.
 ### Expected diagnostics
 
 ```text
-No diagnostic is expected in Phase 2 Stage 3.
-A later validation phase should add a warning diagnostic indicating that the endpoint references a binding configuration that was not found.
+Phase 4 emits warning diagnostic `LWC1007` indicating that the endpoint references a binding configuration that was not found.
 The reader should not fail solely because the reference is unresolved.
 ```
 
@@ -1785,14 +1858,9 @@ The reader should not fail solely because the reference is unresolved.
 
 ```text
 Both service elements should be preserved.
-The typed service collection should define clear behaviour for duplicate names.
-```
-
-Possible collection behaviour:
-
-```text
-Enumeration returns both services.
-Find/GetRequired by name reports duplicate match clearly.
+Enumeration returns both services in source order.
+Phase 3 lookup helpers continue to return the first matching service.
+Phase 4 reports the duplicate through diagnostics.
 ```
 
 ### Raw XML preservation
@@ -1804,7 +1872,139 @@ Both service RawElement values are preserved.
 ### Expected diagnostics
 
 ```text
-A warning or error diagnostic should indicate duplicate service names.
+A warning diagnostic should indicate duplicate service names. The read should remain successful because both raw service elements are preserved.
+```
+
+
+## Scenario 15: Service endpoint references missing binding configuration
+
+Phase 4 validation target: yes.
+
+### Input XML
+
+```xml
+<configuration>
+  <system.serviceModel>
+    <services>
+      <service name="MyCompany.Services.CustomerService">
+        <endpoint
+          address=""
+          binding="basicHttpBinding"
+          bindingConfiguration="MissingBinding"
+          contract="MyCompany.Services.ICustomerService" />
+      </service>
+    </services>
+    <bindings>
+      <basicHttpBinding>
+        <binding name="ExistingBinding" />
+      </basicHttpBinding>
+    </bindings>
+  </system.serviceModel>
+</configuration>
+```
+
+### Expected typed model
+
+```text
+The service endpoint is preserved.
+endpoint.Binding == "basicHttpBinding"
+endpoint.BindingConfiguration == "MissingBinding"
+config.Bindings.BasicHttp contains "ExistingBinding" only.
+```
+
+### Raw XML preservation
+
+```text
+The endpoint and binding XML are preserved.
+```
+
+### Expected diagnostics
+
+```text
+A warning diagnostic should indicate that the endpoint references a missing binding configuration.
+The read should remain successful.
+```
+
+## Scenario 16: Client endpoint references missing endpoint behaviour
+
+Phase 4 validation target: yes.
+
+### Input XML
+
+```xml
+<configuration>
+  <system.serviceModel>
+    <client>
+      <endpoint
+        name="CustomerClient"
+        address="http://localhost/customer"
+        binding="basicHttpBinding"
+        contract="MyCompany.Services.ICustomerService"
+        behaviorConfiguration="MissingEndpointBehavior" />
+    </client>
+    <behaviors>
+      <endpointBehaviors>
+        <behavior name="ExistingEndpointBehavior" />
+      </endpointBehaviors>
+    </behaviors>
+  </system.serviceModel>
+</configuration>
+```
+
+### Expected typed model
+
+```text
+The client endpoint is preserved.
+endpoint.BehaviorConfiguration == "MissingEndpointBehavior"
+config.Behaviors.EndpointBehaviors contains "ExistingEndpointBehavior" only.
+```
+
+### Raw XML preservation
+
+```text
+The client endpoint and endpoint behaviour XML are preserved.
+```
+
+### Expected diagnostics
+
+```text
+A warning diagnostic should indicate that the client endpoint references a missing endpoint behaviour configuration.
+The read should remain successful.
+```
+
+## Scenario 17: Duplicate serviceHostingEnvironment elements
+
+Phase 4 validation target: yes.
+
+### Input XML
+
+```xml
+<configuration>
+  <system.serviceModel>
+    <serviceHostingEnvironment aspNetCompatibilityEnabled="true" />
+    <serviceHostingEnvironment multipleSiteBindingsEnabled="true" />
+  </system.serviceModel>
+</configuration>
+```
+
+### Expected typed model
+
+```text
+config.ServiceHostingEnvironment is built from the first direct serviceHostingEnvironment element.
+All direct serviceHostingEnvironment elements are preserved in RawSystemServiceModel.
+```
+
+### Raw XML preservation
+
+```text
+Both serviceHostingEnvironment elements are preserved.
+```
+
+### Expected diagnostics
+
+```text
+A warning diagnostic should indicate that multiple direct serviceHostingEnvironment elements were found.
+The read should remain successful.
 ```
 
 ## MVP support priority
@@ -1818,14 +2018,15 @@ Priority 1:
 - basic named bindings
 - behaviours by name
 - client endpoints
-- diagnostics
+- retrieval APIs
+- permissive validation diagnostics
 
 Priority 2:
 
 - more binding-specific typed properties
 - more behaviour-specific typed properties
-- serviceHostingEnvironment details
-- validation of cross-references
+- deeper serviceHostingEnvironment details
+- broader validation coverage
 
 Priority 3:
 

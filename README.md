@@ -54,7 +54,7 @@ configuration/system.serviceModel/**
 
 The reader should preserve all descendant XML under `<system.serviceModel>`, including elements that are not yet strongly modelled.
 
-High-value typed model areas include:
+High-value typed model and reader areas include:
 
 - services
 - service endpoints
@@ -65,8 +65,9 @@ High-value typed model areas include:
 - endpoint behaviours
 - client endpoints
 - serviceHostingEnvironment
+- retrieval APIs for common lookups
 - raw XML fallback
-- diagnostics
+- permissive diagnostics
 
 Other sections such as `<appSettings>`, `<connectionStrings>`, `<system.web>`, and `<system.webServer>` may be useful application-hosting context later, but they are not the first focus of the core package.
 
@@ -198,7 +199,7 @@ var baseAddresses = service.Host?.BaseAddresses ?? [];
 ```
 
 
-## Current implementation slice: Phase 3 retrieval APIs
+## Current implementation slice: Phase 4 validation diagnostics
 
 **Phase 1: Full-fidelity reader is implemented.**
 
@@ -215,6 +216,8 @@ var baseAddresses = service.Host?.BaseAddresses ?? [];
 **Phase 2 Stage 6: Typed `serviceHostingEnvironment` support is implemented.**
 
 **Phase 3: Retrieval APIs are implemented.**
+
+**Phase 4: Validation and diagnostics are implemented.**
 
 The reader now preserves the full raw `<system.serviceModel>` XML tree and builds additive typed models for the currently supported WCF concepts. Raw XML remains the source of truth, and every typed service, endpoint, host, host timeout, binding, behaviour, client, client endpoint, and service hosting environment object keeps access to its source `LegacyWcfElement`.
 
@@ -258,12 +261,18 @@ if (result.Success)
 }
 ```
 
+The current package/version context is:
+
+- current NuGet package version: `0.4.0`
+- latest provided test run: 78 total, 78 passed, 0 failed, 0 skipped
+
 The current implementation provides:
 
 - a simple `LegacyWcfConfigurationReader.Read(string filePath)` entry point
 - a read result with `Success`, `Configuration`, and `Diagnostics`
 - a recursive raw XML model that preserves element names, paths, attributes, children, values, raw XML, source file paths, and line numbers where practical
 - diagnostics for missing files, unreadable files, malformed XML, missing `<configuration>`, and missing `<system.serviceModel>`
+- permissive validation diagnostics for duplicate names, unresolved references, duplicate `serviceHostingEnvironment`, and unknown preserved elements
 - typed enumerable services through `config.Services`
 - typed enumerable service endpoints through `service.Endpoints`
 - typed service host access through `service.Host`
@@ -324,6 +333,38 @@ Implemented Phase 3 lookup helpers include:
 - `config.Client?.Endpoints.FindByContract(contract)` and `config.Client?.Endpoints.GetRequiredByContract(contract)`
 
 Find-style helpers return `null` when no match exists. Required helpers throw a clear `InvalidOperationException` when the requested object cannot be found. Matching is case-insensitive for WCF names and identifiers. If duplicates exist, Phase 3 returns the first matching object and leaves duplicate diagnostics to Phase 4 validation.
+
+## Current validation diagnostics: Phase 4
+
+Phase 4 adds permissive validation diagnostics on top of the existing raw and typed model. It does not weaken XML preservation, remove existing typed values, or make valid-but-imperfect legacy WCF configuration unreadable.
+
+The intended Phase 4 behaviour is:
+
+```text
+Read what can be read.
+Preserve what is unknown.
+Report diagnostics.
+Only fail when the file cannot be read, the XML cannot be parsed, <configuration> is missing, or <system.serviceModel> is missing.
+```
+
+Implemented Phase 4 diagnostics cover duplicate named services, duplicate named bindings within the same binding type, duplicate named service behaviours, duplicate named endpoint behaviours, endpoint references to missing binding configurations, endpoint references to missing endpoint behaviours, service references to missing service behaviours, duplicate direct `serviceHostingEnvironment` elements, and unknown or unsupported raw elements preserved for review.
+
+Phase 4 remains additive. Existing Phase 1, Phase 2, and Phase 3 public APIs continue to work. Lookup helpers still return the first matching object where duplicates exist; duplicate reporting belongs in diagnostics rather than lookup behaviour.
+
+Phase 4 validation diagnostic codes are:
+
+| Code | Meaning |
+|---|---|
+| `LWC1001` | Unknown or unsupported WCF configuration element was preserved in raw XML. |
+| `LWC1002` | Duplicate non-blank service name. |
+| `LWC1003` | Duplicate non-blank binding name within the same binding type. |
+| `LWC1004` | Duplicate non-blank service behaviour name. |
+| `LWC1005` | Duplicate non-blank endpoint behaviour name. |
+| `LWC1006` | Duplicate direct `serviceHostingEnvironment` element. |
+| `LWC1007` | Endpoint references a missing binding configuration. |
+| `LWC1008` | Endpoint references a missing endpoint behaviour configuration. |
+| `LWC1009` | Service references a missing service behaviour configuration. |
+
 
 ## Relationship to CoreWCF
 
@@ -388,7 +429,8 @@ LegacyWcf.Configuration/
 │       ├── LegacyWcfServices.cs
 │       └── Internal/
 │           ├── LegacyWcfRawElementBuilder.cs
-│           └── LegacyWcfTypedModelBuilder.cs
+│           ├── LegacyWcfTypedModelBuilder.cs
+│           └── LegacyWcfConfigurationValidator.cs
 │
 ├── tests/
 │   └── LegacyWcf.Configuration.Tests/
@@ -420,20 +462,22 @@ Phase 2 Stage 4 initial typed behaviour support is implemented and covered by te
 
 Phase 2 Stage 5 typed client endpoint support is implemented and covered by tests.
 
-Phase 2 Stage 6 typed `serviceHostingEnvironment` support is implemented and covered by tests in the provided codebase.
+Phase 2 Stage 6 typed `serviceHostingEnvironment` support is implemented and covered by tests.
 
-Current test status:
+Phase 3 retrieval APIs are implemented and covered by tests.
 
-- latest provided full test run after Phase 2 Stage 6: 49 total, 49 passed, 0 failed, 0 skipped.
+Phase 4 validation diagnostics are implemented and covered by tests.
 
-The completed Phase 2 Stage 3 slice adds `LegacyWcfBinding`, `LegacyWcfBindingCollection`, `LegacyWcfBindings`, and `LegacyWcfConfiguration.Bindings`, while keeping all lookup helpers and validation diagnostics for later phases.
+Current package/version context:
 
-The completed Phase 2 Stage 4 slice adds `LegacyWcfBehavior`, `LegacyWcfBehaviorCollection`, `LegacyWcfBehaviors`, and `LegacyWcfConfiguration.Behaviors`. It supports standard American WCF element spelling and British legacy/custom aliases while keeping lookup helpers and validation diagnostics for later phases.
+- current NuGet package version: `0.4.0`
+- latest provided full test run: 78 total, 78 passed, 0 failed, 0 skipped
 
-The next implementation step should be Phase 3 retrieval APIs. The project should continue to prioritise:
+The next implementation step should be decided after the `v0.4.0` release is reviewed. The project should continue to prioritise:
 
 - full-fidelity XML preservation
 - typed access to common WCF values
+- retrieval APIs for common lookups
 - permissive diagnostics
 - low dependency weight
 - clear tests

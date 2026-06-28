@@ -549,7 +549,7 @@ public sealed class LegacyWcfConfigurationReaderTests : IDisposable
 
         Assert.True(result.Success);
         Assert.NotNull(result.Configuration);
-        Assert.Empty(result.Diagnostics);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "LWC1001");
 
         var service = Assert.Single(result.Configuration!.Services);
         Assert.NotNull(service.Host);
@@ -781,7 +781,7 @@ public sealed class LegacyWcfConfigurationReaderTests : IDisposable
 
         Assert.True(result.Success);
         Assert.NotNull(result.Configuration);
-        Assert.Empty(result.Diagnostics);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "LWC1001");
 
         var binding = Assert.Single(result.Configuration!.Bindings.BasicHttp);
         var customChild = Assert.Single(binding.RawElement.Children, child => child.Name == "customBindingChild");
@@ -808,7 +808,7 @@ public sealed class LegacyWcfConfigurationReaderTests : IDisposable
 
         Assert.True(result.Success);
         Assert.NotNull(result.Configuration);
-        Assert.Empty(result.Diagnostics);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "LWC1001");
         Assert.Empty(result.Configuration!.Bindings.BasicHttp);
         Assert.Empty(result.Configuration.Bindings.WsHttp);
         Assert.Empty(result.Configuration.Bindings.NetTcp);
@@ -1007,7 +1007,7 @@ public sealed class LegacyWcfConfigurationReaderTests : IDisposable
 
         Assert.True(result.Success);
         Assert.NotNull(result.Configuration);
-        Assert.Empty(result.Diagnostics);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "LWC1001");
 
         var behavior = Assert.Single(result.Configuration!.Behaviors.ServiceBehaviors);
         var customChild = Assert.Single(behavior.RawElement.Children, child => child.Name == "customBehaviorChild");
@@ -1034,7 +1034,7 @@ public sealed class LegacyWcfConfigurationReaderTests : IDisposable
 
         Assert.True(result.Success);
         Assert.NotNull(result.Configuration);
-        Assert.Empty(result.Diagnostics);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "LWC1001");
         Assert.Empty(result.Configuration!.Behaviors.ServiceBehaviors);
         Assert.Empty(result.Configuration.Behaviors.EndpointBehaviors);
 
@@ -1333,7 +1333,7 @@ public sealed class LegacyWcfConfigurationReaderTests : IDisposable
 
         Assert.True(result.Success);
         Assert.NotNull(result.Configuration);
-        Assert.Empty(result.Diagnostics);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "LWC1001");
         Assert.NotNull(result.Configuration!.Client);
         Assert.Empty(result.Configuration.Client!.Endpoints);
 
@@ -1505,7 +1505,7 @@ public sealed class LegacyWcfConfigurationReaderTests : IDisposable
 
         Assert.True(result.Success);
         Assert.NotNull(result.Configuration);
-        Assert.Empty(result.Diagnostics);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "LWC1001");
 
         var serviceHostingEnvironment = result.Configuration!.ServiceHostingEnvironment;
         Assert.NotNull(serviceHostingEnvironment);
@@ -1531,7 +1531,7 @@ public sealed class LegacyWcfConfigurationReaderTests : IDisposable
 
         Assert.True(result.Success);
         Assert.NotNull(result.Configuration);
-        Assert.Empty(result.Diagnostics);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "LWC1006");
 
         var serviceHostingEnvironment = result.Configuration!.ServiceHostingEnvironment;
         Assert.NotNull(serviceHostingEnvironment);
@@ -2102,6 +2102,208 @@ public sealed class LegacyWcfConfigurationReaderTests : IDisposable
         Assert.Contains("Missing.Contract", exception.Message, StringComparison.Ordinal);
     }
 
+
+    [Fact]
+    public void Read_WhenDuplicateServiceNamesExist_ReturnsWarningDiagnosticAndStillSucceeds()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <services>
+      <service name="MyCompany.Services.CustomerService" />
+      <service name="mycompany.services.customerservice" />
+    </services>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "LWC1002");
+        Assert.Same(result.Diagnostics, result.Configuration!.Diagnostics);
+        Assert.Equal("MyCompany.Services.CustomerService", result.Configuration.Services.Find("mycompany.services.customerservice")!.Name);
+    }
+
+    [Fact]
+    public void Read_WhenDuplicateBindingNamesExistWithinBindingType_ReturnsWarningDiagnosticAndStillSucceeds()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <bindings>
+      <basicHttpBinding>
+        <binding name="CustomerBinding" />
+        <binding name="customerbinding" />
+      </basicHttpBinding>
+    </bindings>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "LWC1003");
+        Assert.Equal("CustomerBinding", result.Configuration!.Bindings.BasicHttp.Find("customerbinding")!.Name);
+    }
+
+    [Fact]
+    public void Read_WhenDuplicateBehaviorNamesExist_ReturnsWarningDiagnosticsAndStillSucceeds()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <behaviors>
+      <serviceBehaviors>
+        <behavior name="CustomerServiceBehavior" />
+        <behavior name="customerservicebehavior" />
+      </serviceBehaviors>
+      <endpointBehaviors>
+        <behavior name="CustomerEndpointBehavior" />
+        <behavior name="customerendpointbehavior" />
+      </endpointBehaviors>
+    </behaviors>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "LWC1004");
+        Assert.Contains(result.Diagnostics, diagnostic => diagnostic.Code == "LWC1005");
+    }
+
+    [Fact]
+    public void Read_WhenServiceEndpointReferencesMissingBinding_ReturnsWarningDiagnosticAndStillSucceeds()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <services>
+      <service name="MyCompany.Services.CustomerService">
+        <endpoint
+          name="CustomerEndpoint"
+          binding="basicHttpBinding"
+          bindingConfiguration="MissingBinding"
+          contract="MyCompany.Services.ICustomerService" />
+      </service>
+    </services>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+        var diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "LWC1007");
+        Assert.Equal(LegacyWcfDiagnosticSeverity.Warning, diagnostic.Severity);
+        Assert.Contains("MissingBinding", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Read_WhenClientEndpointReferencesMissingBinding_ReturnsWarningDiagnosticAndStillSucceeds()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <client>
+      <endpoint
+        name="CustomerClient"
+        binding="basicHttpBinding"
+        bindingConfiguration="MissingBinding"
+        contract="MyCompany.Services.ICustomerService" />
+    </client>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+        var diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "LWC1007");
+        Assert.Equal(LegacyWcfDiagnosticSeverity.Warning, diagnostic.Severity);
+        Assert.Contains("CustomerClient", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Read_WhenEndpointReferencesMissingEndpointBehavior_ReturnsWarningDiagnosticAndStillSucceeds()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <services>
+      <service name="MyCompany.Services.CustomerService">
+        <endpoint
+          name="CustomerEndpoint"
+          behaviorConfiguration="MissingEndpointBehavior"
+          contract="MyCompany.Services.ICustomerService" />
+      </service>
+    </services>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+        var diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "LWC1008");
+        Assert.Equal(LegacyWcfDiagnosticSeverity.Warning, diagnostic.Severity);
+        Assert.Contains("MissingEndpointBehavior", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Read_WhenServiceReferencesMissingServiceBehavior_ReturnsWarningDiagnosticAndStillSucceeds()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <services>
+      <service
+        name="MyCompany.Services.CustomerService"
+        behaviorConfiguration="MissingServiceBehavior" />
+    </services>
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+        var diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "LWC1009");
+        Assert.Equal(LegacyWcfDiagnosticSeverity.Warning, diagnostic.Severity);
+        Assert.Contains("MissingServiceBehavior", diagnostic.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Read_WhenUnknownRawElementExists_ReturnsInfoDiagnosticAndStillPreservesRawXml()
+    {
+        var filePath = WriteConfig("""
+<configuration>
+  <system.serviceModel>
+    <legacyCustomElement enabled="true" />
+  </system.serviceModel>
+</configuration>
+""");
+
+        var result = LegacyWcfConfigurationReader.Read(filePath);
+
+        Assert.True(result.Success);
+        Assert.NotNull(result.Configuration);
+        var diagnostic = Assert.Single(result.Diagnostics, diagnostic => diagnostic.Code == "LWC1001");
+        Assert.Equal(LegacyWcfDiagnosticSeverity.Info, diagnostic.Severity);
+        Assert.Contains("legacyCustomElement", diagnostic.Message, StringComparison.Ordinal);
+        Assert.Single(result.Configuration!.RawSystemServiceModel.Children, child => child.Name == "legacyCustomElement");
+    }
+
     private string WriteConfig(string xml)
     {
         var filePath = Path.Combine(_tempDirectory, $"{Guid.NewGuid():N}.config");
@@ -2110,3 +2312,6 @@ public sealed class LegacyWcfConfigurationReaderTests : IDisposable
         return filePath;
     }
 }
+
+
+
