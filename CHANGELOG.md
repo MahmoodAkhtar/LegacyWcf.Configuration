@@ -29,6 +29,38 @@ This project follows a simple changelog format:
 
 - None.
 
+## [0.4.0] - 2026-06-28
+
+### Added
+
+- Added Phase 4 permissive validation diagnostics for successful reads.
+- Added informational diagnostic `LWC1001` for unknown or unsupported WCF configuration elements preserved in the raw XML model.
+- Added warning diagnostic `LWC1002` for duplicate non-blank service names.
+- Added warning diagnostic `LWC1003` for duplicate non-blank binding names within the same binding type.
+- Added warning diagnostic `LWC1004` for duplicate non-blank service behaviour names.
+- Added warning diagnostic `LWC1005` for duplicate non-blank endpoint behaviour names.
+- Added warning diagnostic `LWC1006` for duplicate direct `serviceHostingEnvironment` elements.
+- Added warning diagnostic `LWC1007` for service or client endpoints that reference a missing binding configuration.
+- Added warning diagnostic `LWC1008` for service or client endpoints that reference a missing endpoint behaviour configuration.
+- Added warning diagnostic `LWC1009` for services that reference a missing service behaviour configuration.
+- Added internal `LegacyWcfConfigurationValidator` post-processing over the preserved raw XML tree and typed model.
+- Added tests covering duplicate services, duplicate bindings, duplicate behaviours, unresolved binding references, unresolved behaviour references, duplicate `serviceHostingEnvironment`, and unknown raw element diagnostics.
+
+### Changed
+
+- Expanded diagnostics from read-failure diagnostics into permissive validation diagnostics for successful reads.
+- Successful reads can now include warning or informational diagnostics in both `LegacyWcfConfigurationReadResult.Diagnostics` and `LegacyWcfConfiguration.Diagnostics`.
+- Kept Phase 4 additive: raw XML preservation, typed model enumeration, lookup helper signatures, and duplicate lookup behaviour remain unchanged.
+- Updated documentation to describe Phase 4 validation diagnostics as implemented and `v0.4.0` as the current release context.
+
+### Fixed
+
+- Nothing yet.
+
+### Breaking Changes
+
+- None.
+
 ## [0.3.0] - 2026-06-27
 
 ### Added
